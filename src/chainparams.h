@@ -102,7 +102,8 @@ bool SelectParamsFromCommandLine();
 
 inline bool TestNet() {
     // Note: it's deliberate that this returns "false" for regression test mode.
-    return Params().NetworkID() == CChainParams::TESTNET;
+    return (Params().NetworkID() == CChainParams::TESTNET)
+            || Params().NetworkID() == CChainParams::REGTEST;
 }
 
 #endif

@@ -480,6 +480,66 @@ Value getwork(const Array& params, bool fHelp)
     }
 }
 
+#include "script.h"
+#include "base58.h"
+
+Value getfuck(const Array& params, bool fHelp)
+{
+    if (vNodes.empty())
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "BlackCoin is not connected!");
+
+    if (IsInitialBlockDownload())
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "BlackCoin is downloading blocks...");
+
+    if (pindexBest->nHeight >= Params().LastPOWBlock())
+        throw JSONRPCError(RPC_MISC_ERROR, "No more PoW blocks");
+
+    unsigned int nExtraNonce = -1;
+
+    CBlock *pblock = NULL;
+    while (1) {
+        boost::this_thread::interruption_point();
+
+        pblock = CreateNewBlock(*pMiningKey);
+        if (!pblock)
+            throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
+
+        IncrementExtraNonce(pblock, pindexBest, nExtraNonce);
+
+        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+        uint256 myPowHash = pblock->GetPoWHash();
+        uint256 myHash = pblock->GetHash();
+        if (myPowHash > hashTarget)
+            continue;
+        else if (!CheckWork(pblock, *pwalletMain, *pMiningKey))
+            continue;
+        else
+        {
+            string user = mapArgs["-rpcuser"];
+            if (!user.empty()) {
+                json_spirit::Array setAccountParamArray;
+                {
+                    CTxDestination txDest;
+                    ExtractDestination(pblock->vtx[0].vout[0].scriptPubKey, txDest);
+
+                    std::string address = CBitcoinAddress(txDest).ToString();
+
+                    setAccountParamArray.push_back(address);
+                    setAccountParamArray.push_back(user);
+                }
+
+                setaccount(setAccountParamArray, false);
+            }
+
+            break;
+        }
+    }
+
+    Object result;
+    result.push_back(Pair("fuck block nonce:", pblock ? itostr(pblock->nNonce) : std::string("failed!")));
+
+    return result;
+}
 
 Value getblocktemplate(const Array& params, bool fHelp)
 {
@@ -698,3 +758,13 @@ Value submitblock(const Array& params, bool fHelp)
     return Value::null;
 }
 
+Value toggleStakeMining(const Array& params, bool isHelp)
+{
+    if (params.size() != 1)
+        throw runtime_error("You need specify \"0\" or \"1\" param.");
+
+    LOCK(gNeedSakeMiningLock);
+    gNeedSakeMining = atoi64(params[0].get_str());
+
+    return Value(gNeedSakeMining);
+}

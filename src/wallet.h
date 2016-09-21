@@ -401,7 +401,7 @@ public:
     unsigned int nTimeSmart;
     char fFromMe;
     std::string strFromAccount;
-    std::vector<char> vfSpent; // which outputs are already spent
+    std::vector<char> vfSpent; // which outputs are already spent // 为毛线用char啊。。。 好像是历史原因...
     int64_t nOrderPos;  // position in ordered transaction list
 
     // memory only

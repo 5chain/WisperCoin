@@ -10,6 +10,10 @@
 
 using namespace std;
 
+
+bool gNeedSakeMining = false;
+CCriticalSection gNeedSakeMiningLock;
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // BitcoinMiner
@@ -199,7 +203,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, bool fProofOfStake, int64_t* pFe
                         if (fDebug) assert("mempool transaction missing input" == 0);
                         fMissingInputs = true;
                         if (porphan)
-                            vOrphan.pop_back();
+                            vOrphan.pop_back(); // why???
                         break;
                     }
 
@@ -383,6 +387,8 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
     }
     ++nExtraNonce;
 
+    pblock->nNonce = nExtraNonce;
+
     unsigned int nHeight = pindexPrev->nHeight+1; // Height first in coinbase required for block.version=2
     pblock->vtx[0].vin[0].scriptSig = (CScript() << nHeight << CBigNum(nExtraNonce)) + COINBASE_FLAGS;
     assert(pblock->vtx[0].vin[0].scriptSig.size() <= 100);
@@ -545,10 +551,23 @@ void ThreadStakeMiner(CWallet *pwallet)
             fTryToSync = false;
             if (vNodes.size() < 3 || pindexBest->GetBlockTime() < GetTime() - 10 * 60)
             {
-                MilliSleep(60000);
+                //MilliSleep(60000);
+                MilliSleep(3000);
+
                 continue;
             }
         }
+
+        {
+            LOCK(gNeedSakeMiningLock);
+            if (!gNeedSakeMining)
+            {
+                MilliSleep(1000);
+
+                continue;
+            }
+        }
+
 
         //
         // Create new block

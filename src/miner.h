@@ -9,6 +9,9 @@
 #include "main.h"
 #include "wallet.h"
 
+extern bool gNeedSakeMining;
+extern CCriticalSection gNeedSakeMiningLock;
+
 /* Generate a new block, without valid proof-of-work */
 CBlock* CreateNewBlock(CReserveKey& reservekey, bool fProofOfStake=false, int64_t* pFees = 0);
 

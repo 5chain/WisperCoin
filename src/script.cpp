@@ -1612,7 +1612,7 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
         keyID = CKeyID(uint160(vSolutions[0]));
         if (!Sign1(keyID, keystore, hash, nHashType, scriptSigRet))
             return false;
-        else
+        else // 擦嘞，这个隐藏在这真的好吗。。。
         {
             CPubKey vch;
             keystore.GetPubKey(keyID, vch);

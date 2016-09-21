@@ -40,7 +40,7 @@ map<uint256, CBlockIndex*> mapBlockIndex;
 set<pair<COutPoint, unsigned int> > setStakeSeen;
 
 CBigNum bnProofOfStakeLimit(~uint256(0) >> 20);
-CBigNum bnProofOfStakeLimitV2(~uint256(0) >> 48);
+CBigNum bnProofOfStakeLimitV2(~uint256(0) >> 20);
 
 int nStakeMinConfirmations = 500;
 unsigned int nStakeMinAge = 8 * 60 * 60; // 8 hours
@@ -566,7 +566,7 @@ bool CTransaction::CheckTransaction() const
 
     if (IsCoinBase())
     {
-        if (vin[0].scriptSig.size() < 2 || vin[0].scriptSig.size() > 100)
+        if (vin[0].scriptSig.size() < 2 || vin[0].scriptSig.size() > 100) // 小于2这个判断太不严谨了。。 当pos的height<=15时检测过不了。。。
             return DoS(100, error("CTransaction::CheckTransaction() : coinbase script size is invalid"));
     }
     else
@@ -1008,7 +1008,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
 
     if (pindexLast == NULL)
         return bnTargetLimit.GetCompact(); // genesis block
-
+    // 此处应该是pos和pow混合存在的情况而设计的
     const CBlockIndex* pindexPrev = GetLastBlockIndex(pindexLast, fProofOfStake);
     if (pindexPrev->pprev == NULL)
         return bnTargetLimit.GetCompact(); // first block
@@ -1390,7 +1390,7 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
             return false;
 
     // Update block index on disk without changing it in memory.
-    // The memory index structure will be changed after the db commits.
+    // The memory index structure will be changed after the db commits. // why??? 可能是因为解决分叉问题时读的是disk的数据，mem中的没用？
     if (pindex->pprev)
     {
         CDiskBlockIndex blockindexPrev(pindex->pprev);
@@ -1826,7 +1826,7 @@ bool CTransaction::GetCoinAge(CTxDB& txdb, const CBlockIndex* pindexPrev, uint64
         if (nTime < txPrev.nTime)
             return false;  // Transaction timestamp violation
 
-        if (IsProtocolV3(nTime))
+        if (IsProtocolV3(nTime)) // 尼玛改功能不改函数名和注释，菊花万人捅。。。
         {
             int nSpendDepth;
             if (IsConfirmedInNPrevBlocks(txindex, pindexPrev, nStakeMinConfirmations - 1, nSpendDepth))
@@ -2135,7 +2135,7 @@ bool CBlockIndex::IsSuperMajority(int minVersion, const CBlockIndex* pstart, uns
 }
 
 void PushGetBlocks(CNode* pnode, CBlockIndex* pindexBegin, uint256 hashEnd)
-{
+{ // 确定begin在end前面么？要不是的话怎么办？？？ -- 那就取到最后
     // Filter out duplicate requests
     if (pindexBegin == pnode->pindexLastGetBlocksBegin && hashEnd == pnode->hashLastGetBlocksEnd)
         return;
@@ -2215,7 +2215,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
         if (pfrom) {
             // ppcoin: check proof-of-stake
             if (pblock->IsProofOfStake())
-            {
+            { // 这块是用来防通过同一个prevout反复生成pos块来发动攻击的，因为其block的hash值可能不同，所以得加个结构来判断。
                 // Limited duplicity on stake: prevents block flood attack
                 // Duplicate stake allowed only when there is orphan child block
                 if (setStakeSeenOrphan.count(pblock->GetProofOfStake()) && !mapOrphanBlocksByPrev.count(hash))
@@ -2451,8 +2451,8 @@ bool LoadBlockIndex(bool fAllowNew)
 
     if (TestNet())
     {
-        nStakeMinConfirmations = 10;
-        nCoinbaseMaturity = 10; // test maturity is 10 blocks
+        nStakeMinConfirmations = 3;  // 3 for testnet // 越大越好。。。
+        nCoinbaseMaturity = 3; // test maturity is 3 blocks
     }
 
     //
@@ -3234,8 +3234,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                         vWorkQueue.push_back(orphanTxHash);
                         vEraseQueue.push_back(orphanTxHash);
                     }
-                    else if (!fMissingInputs2)
-                    {
+                    else if (!fMissingInputs2) // So why here???
+                    { // 这儿不应该直接删mapOrphanTransactions里的吧？因为之前add时可能有俩preout都被加进mapOrphanTransactionsByPrev
                         // invalid or too-little-fee orphan
                         vEraseQueue.push_back(orphanTxHash);
                         LogPrint("mempool", "   removed orphan tx %s\n", orphanTxHash.ToString());
@@ -3280,8 +3280,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
     // This asymmetric behavior for inbound and outbound connections was introduced
     // to prevent a fingerprinting attack: an attacker can send specific fake addresses
-    // to users' AddrMan and later request them by sending getaddr messages. 
-    // Making users (which are behind NAT and can only make outgoing connections) ignore 
+    // to users' AddrMan and later request them by sending getaddr messages.
+    // Making users (which are behind NAT and can only make outgoing connections) ignore
     // getaddr message mitigates the attack.
     else if ((strCommand == "getaddr") && (pfrom->fInbound))
     {

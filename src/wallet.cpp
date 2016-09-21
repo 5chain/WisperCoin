@@ -581,7 +581,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransaction& tx, const CBlock* pbl
 void CWallet::SyncTransaction(const CTransaction& tx, const CBlock* pblock, bool fConnect) {
     if (!fConnect)
     {
-        // wallets need to refund inputs when disconnecting coinstake
+        // wallets need to refund inputs when disconnecting coinstake // 因为别的交易走的都是正常路子，只有coinstake是无中生有自己产生且可撤销的。。
         if (tx.IsCoinStake())
         {
             if (IsFromMe(tx))
@@ -800,7 +800,7 @@ void CWalletTx::AddSupportingTransactions(CTxDB& txdb)
     vtxPrev.clear();
 
     const int COPY_DEPTH = 3;
-    if (SetMerkleBranch() < COPY_DEPTH)
+    if (SetMerkleBranch() < COPY_DEPTH) // 主要为了导入钱包等时重建交易信息以及判断vin可信度什么的，所以可以尽情加，3个区块足够保证可信了
     {
         vector<uint256> vWorkQueue;
         BOOST_FOREACH(const CTxIn& txin, vin)
@@ -1630,14 +1630,14 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     {
         static int nMaxStakeSearchInterval = 60;
         bool fKernelFound = false;
-        for (unsigned int n=0; n<min(nSearchInterval,(int64_t)nMaxStakeSearchInterval) && !fKernelFound && pindexPrev == pindexBest; n++)
+        for (unsigned int n=0; n < 1 /*min(nSearchInterval,(int64_t)nMaxStakeSearchInterval)*/ && !fKernelFound && pindexPrev == pindexBest; n++)
         {
             boost::this_thread::interruption_point();
             // Search backward in time from the given txNew timestamp 
             // Search nSearchInterval seconds back up to nMaxStakeSearchInterval
             COutPoint prevoutStake = COutPoint(pcoin.first->GetHash(), pcoin.second);
             int64_t nBlockTime;
-            if (CheckKernel(pindexPrev, nBits, txNew.nTime - n, prevoutStake, &nBlockTime))
+            if (CheckKernel(pindexPrev, nBits, txNew.nTime, prevoutStake, &nBlockTime))
             {
                 // Found a kernel
                 LogPrint("coinstake", "CreateCoinStake : kernel found\n");
@@ -1666,7 +1666,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
                     }
                     scriptPubKeyOut << key.GetPubKey() << OP_CHECKSIG;
                 }
-                if (whichType == TX_PUBKEY)
+                if (whichType == TX_PUBKEY) // POS 会将之前pow出来的TX_PUBKEYHASH签名改成TX_PUBKEY类型，but why??? 隐藏真实地址和币数么？可隐藏不了啊
                 {
                     valtype& vchPubKey = vSolutions[0];
                     if (!keystore.GetKey(Hash160(vchPubKey), key))
@@ -1684,7 +1684,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
                     scriptPubKeyOut = scriptPubKeyKernel;
                 }
 
-                txNew.nTime -= n;
+                txNew.nTime;
                 txNew.vin.push_back(CTxIn(pcoin.first->GetHash(), pcoin.second));
                 nCredit += pcoin.first->vout[pcoin.second].nValue;
                 vwtxPrev.push_back(pcoin.first);

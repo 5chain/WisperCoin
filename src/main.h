@@ -278,7 +278,7 @@ public:
 
     bool IsCoinStake() const
     {
-        // ppcoin: the coin stake transaction is marked with the first output empty
+        // ppcoin: the coin stake transaction is marked with the first output empty // 和正常tx区分的关键在于 vout[0].IsEmpty()
         return (vin.size() > 0 && (!vin[0].prevout.IsNull()) && vout.size() >= 2 && vout[0].IsEmpty());
     }
 
@@ -404,21 +404,21 @@ public:
 
     const CTxOut& GetOutputFor(const CTxIn& input, const MapPrevTx& inputs) const;
 };
-
-/** wrapper for CTxOut that provides a more compact serialization */
-class CTxOutCompressor
-{
-private:
-    CTxOut &txout;
-public:
-    CTxOutCompressor(CTxOut &txoutIn) : txout(txoutIn) { }
-
-    IMPLEMENT_SERIALIZE(
-        READWRITE(VARINT(txout.nValue));
-        CScriptCompressor cscript(REF(txout.scriptPubKey));
-        READWRITE(cscript);
-    )
-};
+//
+///** wrapper for CTxOut that provides a more compact serialization */
+//class CTxOutCompressor
+//{
+//private:
+//    CTxOut &txout;
+//public:
+//    CTxOutCompressor(CTxOut &txoutIn) : txout(txoutIn) { }
+//
+//    IMPLEMENT_SERIALIZE(
+//        READWRITE(VARINT(txout.nValue));
+//        CScriptCompressor cscript(REF(txout.scriptPubKey));
+//        READWRITE(cscript);
+//    )
+//};
 
 /** Check for standard transaction types
     @param[in] mapInputs	Map of previous transactions that have outputs we're spending
@@ -688,7 +688,7 @@ public:
         return !IsProofOfStake();
     }
 
-    std::pair<COutPoint, unsigned int> GetProofOfStake() const
+    std::pair<COutPoint, unsigned int>  GetProofOfStake() const
     {
         return IsProofOfStake()? std::make_pair(vtx[1].vin[0].prevout, vtx[1].nTime) : std::make_pair(COutPoint(), (unsigned int)0);
     }

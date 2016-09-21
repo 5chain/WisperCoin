@@ -95,6 +95,9 @@ bool AppInit(int argc, char* argv[])
             }
             // Child process falls through to rest of initialization
 
+            cout << "Waiting for debug attach..." << endl;
+            MilliSleep(6000);
+
             pid_t sid = setsid();
             if (sid < 0)
                 fprintf(stderr, "Error: setsid() returned %d errno %d\n", sid, errno);
