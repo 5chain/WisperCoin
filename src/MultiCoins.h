@@ -15,9 +15,16 @@ namespace MultiCoins
     static const size_t MIN_COIN_NAME_LENGTH = 3;
     static const size_t MAX_COIN_NAME_LENGTH = 10;
 
+    static const string publicReceiptAddress("mwgB4hAhMPzE4i2omvC5kCb6HGoeFT5GCu");
+
     static bool isCoinNameValid(const string& coinName)
     {
         return ((coinName.size() >= MIN_COIN_NAME_LENGTH) && (coinName.size() <= MAX_COIN_NAME_LENGTH));
+    }
+
+    static bool isReceiptAddressValid(CTxDestination& destAddress)
+    {
+        return (destAddress == CBitcoinAddress(publicReceiptAddress).Get());
     }
 
     class MultiCoinType : public CBase58Data
@@ -34,9 +41,7 @@ namespace MultiCoins
         }
     };
 
-    // For the main coin called wsc.
     static const string mainCoinTypeStr = MultiCoinType("wsc").ToString();
-    static const string publicReceiptAddress("");
 };
 
 #endif //SRC_MULTICOINS_H

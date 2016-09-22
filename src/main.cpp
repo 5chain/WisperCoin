@@ -583,12 +583,25 @@ bool CTransaction::CheckTransaction() const
         {
             CTransaction txPrev;
             CTxIndex txindex;
-            if (txPrev.ReadFromDisk(txDB, txin.prevout, txindex))
+            if (txPrev.ReadFromDisk(txDB, txin.prevout, txindex) || mempool.lookup(txin.prevout.hash, txPrev))
             {
-                if (txPrev.coinTypeStr != this->coinTypeStr)
+                if (!txPrev.isFitCoinType(this->coinTypeStr))
                     return DoS(100, error("CTransaction::CheckTransaction() : tx coin type isnot the same as prevout!"));
             }
         }
+    }
+    else
+    {
+        if (vout.size() < 2)
+            return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong vout!"));
+
+        string newCoinName;
+        CTxDestination address;
+
+        if (!this->getNewCoinName(newCoinName)
+            || !ExtractDestination(vout.back().scriptPubKey, address)
+            || !MultiCoins::isReceiptAddressValid(address))
+            return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
     }
 
     return true;

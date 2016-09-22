@@ -82,8 +82,8 @@ public:
         genesis.nNonce   = 164482;
 
         hashGenesisBlock = genesis.GetHash();
-        assert(hashGenesisBlock == uint256("0x000001faef25dec4fbcf906e6242621df2c183bf232f263d0ba5b101911e4563"));
-        assert(genesis.hashMerkleRoot == uint256("0x12630d16a97f24b287c8c2594dda5fb98c9e6c70fc61d44191931ea2aa08dc90"));
+//        assert(hashGenesisBlock == uint256("0x000001faef25dec4fbcf906e6242621df2c183bf232f263d0ba5b101911e4563"));
+//        assert(genesis.hashMerkleRoot == uint256("0x12630d16a97f24b287c8c2594dda5fb98c9e6c70fc61d44191931ea2aa08dc90"));
 
         vSeeds.push_back(CDNSSeedData("rat4.blackcoin.co", "seed.blackcoin.co"));
         vSeeds.push_back(CDNSSeedData("syllabear.tk", "bcseed.syllabear.tk"));
@@ -175,7 +175,7 @@ public:
         hashGenesisBlock = genesis.GetHash();
         nDefaultPort = 18444;
         strDataDir = "regtest";
-        assert(hashGenesisBlock == uint256("0x523dda6d336047722cbaf1c5dce622298af791bac21b33bf6e2d5048b2a13e3d"));
+        //assert(hashGenesisBlock == uint256("0x523dda6d336047722cbaf1c5dce622298af791bac21b33bf6e2d5048b2a13e3d"));
 
         vSeeds.clear();  // Regtest mode doesn't have any DNS seeds.
     }

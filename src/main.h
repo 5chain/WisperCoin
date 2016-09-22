@@ -247,7 +247,21 @@ public:
             || !MultiCoins::isCoinNameValid(strVec[1]))
             return false;
 
-        newCoinName = MultiCoins::MultiCoinType().decodeTypeStr(strVec[1]);
+        newCoinName = strVec[1];
+
+        return true;
+    }
+
+    inline bool isFitCoinType(const string& coinType) const
+    {
+        if (coinType != this->coinTypeStr)
+        {
+            string newCoinType;
+            if (!this->getNewCoinName(newCoinType))
+                return false;
+
+            return (coinType == newCoinType);
+        }
 
         return true;
     }

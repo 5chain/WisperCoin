@@ -1076,7 +1076,7 @@ int64_t CWallet::GetImmatureBalance() const
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx& pcoin = (*it).second;
-            if (pcoin.IsCoinBase() && pcoin.GetBlocksToMaturity() > 0 && pcoin.IsInMainChain())
+            if (pcoin.GetBlocksToMaturity() > 0 && pcoin.IsInMainChain())
                 nTotal += GetCredit(pcoin);
         }
     }
@@ -1094,7 +1094,7 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
         {
             const CWalletTx* pcoin = &(*it).second;
 
-            if (pcoin->coinTypeStr != coinType)
+            if (!pcoin->isFitCoinType(coinType))
                 continue;
 
             if (!IsFinalTx(*pcoin))
@@ -1103,13 +1103,8 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
             if (fOnlyConfirmed && !pcoin->IsTrusted())
                 continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
-                continue;
-
-            if (pcoin->IsCoinStake() && pcoin->GetBlocksToMaturity() > 0)
-                continue;
-
-            if (pcoin->isCreateNewCoin() && pcoin->GetBlocksToMaturity() > 0)
+            // Coinbase, Coinstake and New coin create are all in this statement.
+            if (pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
@@ -1133,7 +1128,7 @@ void CWallet::AvailableCoinsForStaking(vector<COutput>& vCoins, unsigned int nSp
         {
             const CWalletTx* pcoin = &(*it).second;
 
-            if (pcoin->coinTypeStr != coinType)
+            if (!pcoin->isFitCoinType(coinType))
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
@@ -1389,7 +1384,8 @@ bool CWallet::SelectCoinsForStaking(int64_t nTargetValue, unsigned int nSpendTim
     return true;
 }
 
-bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, int64_t& nFeeRet, const CCoinControl* coinControl)
+bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &wtxNew, CReserveKey &reservekey,
+                                int64_t &nFeeRet)
 {
     int64_t nValue = 0;
     BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
@@ -1446,7 +1442,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
                 // Choose coins to use
                 set<pair<const CWalletTx*,unsigned int> > setCoins;
                 int64_t nValueIn = 0;
-                if (!SelectCoins(nTotalValue, wtxNew.nTime, setCoins, nValueIn))
+                if (!SelectCoins(nTotalValue, wtxNew.nTime, setCoins, nValueIn, wtxNew.coinTypeStr))
                     return false;
                 BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
                 {
@@ -1463,28 +1459,20 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
                     // change transaction isn't always pay-to-bitcoin-address
                     CScript scriptChange;
 
-                    // coin control: send change to custom address
-                    if (coinControl && !boost::get<CNoDestination>(&coinControl->destChange))
-                        scriptChange.SetDestination(coinControl->destChange);
+                    // Note: We use a new key here to keep it from being obvious which side is the change.
+                    //  The drawback is that by not reusing a previous key, the change may be lost if a
+                    //  backup is restored, if the backup doesn't have the new private key for the change.
+                    //  If we reused the old key, it would be possible to add code to look for and
+                    //  rediscover unknown transactions that were written with keys of ours to recover
+                    //  post-backup change.
 
-                    // no coin control: send change to newly generated address
-                    else
-                    {
-                        // Note: We use a new key here to keep it from being obvious which side is the change.
-                        //  The drawback is that by not reusing a previous key, the change may be lost if a
-                        //  backup is restored, if the backup doesn't have the new private key for the change.
-                        //  If we reused the old key, it would be possible to add code to look for and
-                        //  rediscover unknown transactions that were written with keys of ours to recover
-                        //  post-backup change.
+                    // Reserve a new key pair from key pool
+                    CPubKey vchPubKey;
+                    bool ret;
+                    ret = reservekey.GetReservedKey(vchPubKey);
+                    assert(ret); // should never fail, as we just unlocked
 
-                        // Reserve a new key pair from key pool
-                        CPubKey vchPubKey;
-                        bool ret;
-                        ret = reservekey.GetReservedKey(vchPubKey);
-                        assert(ret); // should never fail, as we just unlocked
-
-                        scriptChange.SetDestination(vchPubKey.GetID());
-                    }
+                    scriptChange.SetDestination(vchPubKey.GetID());
 
                     // Insert change txn at random position:
                     vector<CTxOut>::iterator position = wtxNew.vout.begin()+GetRandInt(wtxNew.vout.size()+1);
@@ -1534,11 +1522,12 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
     return true;
 }
 
-bool CWallet::CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNew, CReserveKey& reservekey, int64_t& nFeeRet, const CCoinControl* coinControl)
+bool
+CWallet::CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, CReserveKey &reservekey, int64_t &nFeeRet)
 {
     vector< pair<CScript, int64_t> > vecSend;
     vecSend.push_back(make_pair(scriptPubKey, nValue));
-    return CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet, coinControl);
+    return CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet);
 }
 
 uint64_t CWallet::GetStakeWeight() const
@@ -1613,7 +1602,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     int64_t nValueIn = 0;
 
     // Select coins with suitable depth
-    if (!SelectCoinsForStaking(nBalance - nReserveBalance, txNew.nTime, setCoins, nValueIn))
+    if (!SelectCoinsForStaking(nBalance - nReserveBalance, txNew.nTime, setCoins, nValueIn, txNew.coinTypeStr))
         return false;
 
     if (setCoins.empty())
@@ -1830,7 +1819,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 
 
 
-string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNew, bool fAskFee)
+std::string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, bool fAskFee)
 {
     CReserveKey reservekey(this);
     int64_t nFeeRequired;
@@ -1869,7 +1858,7 @@ string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNe
 
 
 
-string CWallet::SendMoneyToDestination(const CTxDestination& address, int64_t nValue, CWalletTx& wtxNew, bool fAskFee)
+std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64_t nValue, CWalletTx &wtxNew, bool fAskFee)
 {
     // Check amount
     if (nValue <= 0)
@@ -2269,7 +2258,7 @@ std::map<CTxDestination, int64_t> CWallet::GetAddressBalances()
             if (!IsFinalTx(*pcoin) || !pcoin->IsTrusted())
                 continue;
 
-            if ((pcoin->IsCoinBase() || pcoin->IsCoinStake()) && pcoin->GetBlocksToMaturity() > 0)
+            if (pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();

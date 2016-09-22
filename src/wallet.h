@@ -201,15 +201,16 @@ public:
     int64_t GetImmatureBalance() const;
     int64_t GetStake() const;
     int64_t GetNewMint() const;
-    bool CreateTransaction(const std::vector<std::pair<CScript, int64_t> >& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, int64_t& nFeeRet, const CCoinControl *coinControl=NULL);
-    bool CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNew, CReserveKey& reservekey, int64_t& nFeeRet, const CCoinControl *coinControl=NULL);
+    bool CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &wtxNew, CReserveKey &reservekey,
+                               int64_t &nFeeRet);
+    bool CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, CReserveKey &reservekey, int64_t &nFeeRet);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey);
 
     uint64_t GetStakeWeight() const;
     bool CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int64_t nSearchInterval, int64_t nFees, CTransaction& txNew, CKey& key);
 
-    std::string SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNew, bool fAskFee=false);
-    std::string SendMoneyToDestination(const CTxDestination &address, int64_t nValue, CWalletTx& wtxNew, bool fAskFee=false);
+    std::string SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, bool fAskFee);
+    std::string SendMoneyToDestination(const CTxDestination &address, int64_t nValue, CWalletTx &wtxNew, bool fAskFee);
 
     bool CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
                          int64_t newCoinAmount, const CTxDestination &address,
@@ -234,7 +235,9 @@ public:
     {
         return ::IsMine(*this, txout.scriptPubKey);
     }
-    int64_t GetCredit(const CTxOut& txout, const string& coinType = MultiCoins::mainCoinTypeStr) const
+
+    // NOTE: Before calling this, you must check the tx coin type!
+    int64_t GetCredit(const CTxOut& txout) const
     {
         if (!MoneyRange(txout.nValue))
             throw std::runtime_error("CWallet::GetCredit() : value out of range");
@@ -269,8 +272,11 @@ public:
         }
         return nDebit;
     }
-    int64_t GetCredit(const CTransaction& tx) const
+    int64_t GetCredit(const CTransaction& tx, const string& coinType = MultiCoins::mainCoinTypeStr) const
     {
+        if (!tx.isFitCoinType(coinType))
+            return 0;
+
         int64_t nCredit = 0;
         BOOST_FOREACH(const CTxOut& txout, tx.vout)
         {
@@ -598,10 +604,13 @@ public:
         return nDebitCached;
     }
 
-    int64_t GetCredit(bool fUseCache=true) const
+    int64_t GetCredit(bool fUseCache=true, const string& coinType = MultiCoins::mainCoinTypeStr) const
     {
         // Must wait until coinbase is safely deep enough in the chain before valuing it
-        if ((IsCoinBase() || IsCoinStake()) && GetBlocksToMaturity() > 0)
+        if (GetBlocksToMaturity() > 0)
+            return 0;
+
+        if (!this->isFitCoinType(coinType))
             return 0;
 
         // GetBalance can assume transactions in mapWallet won't change
@@ -612,10 +621,13 @@ public:
         return nCreditCached;
     }
 
-    int64_t GetAvailableCredit(bool fUseCache=true) const
+    int64_t GetAvailableCredit(bool fUseCache=true, const string& coinType = MultiCoins::mainCoinTypeStr) const
     {
         // Must wait until coinbase is safely deep enough in the chain before valuing it
-        if ((IsCoinBase() || IsCoinStake()) && GetBlocksToMaturity() > 0)
+        if (GetBlocksToMaturity() > 0)
+            return 0;
+
+        if (!this->isFitCoinType(coinType))
             return 0;
 
         if (fUseCache && fAvailableCreditCached)

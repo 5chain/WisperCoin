@@ -783,7 +783,7 @@ Value createNewCoin(const Array& params, bool isHelp)
     string newCoinName = "zzc";
     int64_t newCoinAmount = AmountFromValue(10000000);
     CBitcoinAddress address(MultiCoins::publicReceiptAddress);
-    CBitcoinAddress buyerAddress("");
+    CBitcoinAddress buyerAddress("myqtQvZNVRQRuPYmh8mJtfSQaFctRUJNrp");
 
     CWalletTx newTx;
     if (!pwalletMain->CreateNewCoinTx(mainCoinPayCount, newCoinName, newCoinAmount, address.Get(), buyerAddress.Get(), newTx))
