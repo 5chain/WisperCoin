@@ -786,6 +786,6 @@ Value createNewCoin(const Array& params, bool isHelp)
     CBitcoinAddress buyerAddress("");
 
     CWalletTx newTx;
-
-    pwalletMain->CreateNewCoinTx(mainCoinPayCount, newCoinName, newCoinAmount, address.Get(), newTx);
+    if (!pwalletMain->CreateNewCoinTx(mainCoinPayCount, newCoinName, newCoinAmount, address.Get(), buyerAddress.Get(), newTx))
+        throw JSONRPCError(RPC_INVALID_PARAMS, "Error: Please enter correct new coin amount.");
 }

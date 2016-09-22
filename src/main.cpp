@@ -522,12 +522,6 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
     return pindexBest->nHeight - pindex->nHeight + 1;
 }
 
-
-
-
-
-
-
 bool CTransaction::CheckTransaction() const
 {
     // Basic checks that don't depend on any context
@@ -551,10 +545,11 @@ bool CTransaction::CheckTransaction() const
         if (txout.nValue > MAX_MONEY)
             return DoS(100, error("CTransaction::CheckTransaction() : txout.nValue too high"));
 
-        if (isNewCoinCreate() && (i == vout.size() - 1))
-            break;
+        if (isCreateNewCoin() && (i == vout.size() - 1))
+            nValueOut = txout.nValue;
+        else
+            nValueOut += txout.nValue;
 
-        nValueOut += txout.nValue;
         if (!MoneyRange(nValueOut))
             return DoS(100, error("CTransaction::CheckTransaction() : txout total out of range"));
     }
@@ -578,6 +573,22 @@ bool CTransaction::CheckTransaction() const
         BOOST_FOREACH(const CTxIn& txin, vin)
             if (txin.prevout.IsNull())
                 return DoS(10, error("CTransaction::CheckTransaction() : prevout is null"));
+    }
+
+    if (!this->isCreateNewCoin())
+    {
+        CTxDB txDB("r");
+
+        BOOST_FOREACH(const CTxIn& txin, vin)
+        {
+            CTransaction txPrev;
+            CTxIndex txindex;
+            if (txPrev.ReadFromDisk(txDB, txin.prevout, txindex))
+            {
+                if (txPrev.coinTypeStr != this->coinTypeStr)
+                    return DoS(100, error("CTransaction::CheckTransaction() : tx coin type isnot the same as prevout!"));
+            }
+        }
     }
 
     return true;
@@ -637,16 +648,16 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
 
     // Check for conflicts with in-memory transactions
     {
-    LOCK(pool.cs); // protect pool.mapNextTx
-    for (unsigned int i = 0; i < tx.vin.size(); i++)
-    {
-        COutPoint outpoint = tx.vin[i].prevout;
-        if (pool.mapNextTx.count(outpoint))
+        LOCK(pool.cs); // protect pool.mapNextTx
+        for (unsigned int i = 0; i < tx.vin.size(); i++)
         {
-            // Disable replacement feature for now
-            return false;
+            COutPoint outpoint = tx.vin[i].prevout;
+            if (pool.mapNextTx.count(outpoint))
+            {
+                // Disable replacement feature for now
+                return false;
+            }
         }
-    }
     }
 
     {
@@ -655,6 +666,27 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
         // do we already have it?
         if (txdb.ContainsTx(hash))
             return false;
+
+        if (tx.isCreateNewCoin())
+        {
+            string newCoinName;
+            if (tx.getNewCoinName(newCoinName))
+            {
+                CTxIndex txIdx;
+                if (txdb.ReadNewMultiCoinGenesisTx(newCoinName, txIdx))
+                    return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin name.");
+
+                BOOST_FOREACH(const PAIRTYPE(uint256, CTransaction)& txPair, pool.mapTx)
+                {
+                    if (txPair.second.isCreateNewCoin())
+                    {
+                        string coinName;
+                        if (txPair.second.getNewCoinName(coinName) && (coinName == newCoinName))
+                            return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin name in mempool.");
+                    }
+                }
+            }
+        }
 
         MapPrevTx mapInputs;
         map<uint256, CTxIndex> mapUnused;
@@ -791,7 +823,7 @@ int CMerkleTx::GetDepthInMainChain(CBlockIndex* &pindexRet) const
 
 int CMerkleTx::GetBlocksToMaturity() const
 {
-    if (!(IsCoinBase() || IsCoinStake()))
+    if (!(IsCoinBase() || IsCoinStake() || isCreateNewCoin()))
         return 0;
     return max(0, (nCoinbaseMaturity+1) - GetDepthInMainChain());
 }
@@ -1119,14 +1151,6 @@ bool IsConfirmedInNPrevBlocks(const CTxIndex& txindex, const CBlockIndex* pindex
     return false;
 }
 
-
-
-
-
-
-
-
-
 bool CTransaction::DisconnectInputs(CTxDB& txdb)
 {
     // Relinquish previous transactions' spent pointers
@@ -1283,7 +1307,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs, map<uint256, CTx
                 return DoS(100, error("ConnectInputs() : %s prevout.n out of range %d %u %u prev tx %s\n%s", GetHash().ToString(), prevout.n, txPrev.vout.size(), txindex.vSpent.size(), prevout.hash.ToString(), txPrev.ToString()));
 
             // If prev is coinbase or coinstake, check that it's matured
-            if (txPrev.IsCoinBase() || txPrev.IsCoinStake())
+            if (txPrev.IsCoinBase() || txPrev.IsCoinStake() || txPrev.isCreateNewCoin())
             {
                 int nSpendDepth;
                 if (IsConfirmedInNPrevBlocks(txindex, pindexBlock, nCoinbaseMaturity, nSpendDepth))
@@ -1389,6 +1413,16 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs, map<uint256, CTx
 
 bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 {
+    BOOST_FOREACH(CTransaction& tx, vtx)
+    {
+        if (tx.isCreateNewCoin())
+        {
+            string newCoinName;
+            if (tx.getNewCoinName(newCoinName))
+                txdb.EraseNewMultiCoinGenesisTx(newCoinName);
+        }
+    }
+
     // Disconnect in reverse order
     for (int i = vtx.size()-1; i >= 0; i--)
         if (!vtx[i].DisconnectInputs(txdb))
@@ -1504,6 +1538,13 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
         }
 
         mapQueuedChanges[hashTx] = CTxIndex(posThisTx, tx.vout.size());
+
+        if (tx.isCreateNewCoin())
+        {
+            string newCoinName;
+            if (tx.getNewCoinName(newCoinName))
+                txdb.WriteNewMultiCoinGenesisTx(newCoinName, mapQueuedChanges[hashTx]);
+        }
     }
 
     if (IsProofOfWork())

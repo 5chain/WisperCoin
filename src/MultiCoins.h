@@ -12,26 +12,31 @@ using namespace std;
 
 namespace MultiCoins
 {
-    // For the main coin called wsc.
-    static const string mainCoinTypeStr = MultiCoinType("wsc").ToString();
-    static const string publicReceiptAddress("");
+    static const size_t MIN_COIN_NAME_LENGTH = 3;
+    static const size_t MAX_COIN_NAME_LENGTH = 10;
+
+    static bool isCoinNameValid(const string& coinName)
+    {
+        return ((coinName.size() >= MIN_COIN_NAME_LENGTH) && (coinName.size() <= MAX_COIN_NAME_LENGTH));
+    }
 
     class MultiCoinType : public CBase58Data
     {
     public:
-        MultiCoinType(const std::string& originTypeStr)
+        MultiCoinType(const std::string& originTypeStr = string())
         {
             SetData(Params().Base58Prefix(CChainParams::COIN_TYPE), originTypeStr.c_str(), originTypeStr.size());
         }
 
-        static string decodeTypeStr(const string& typeStr)
+        string decodeTypeStr(const string& typeStr)
         {
-            CBase58Data type;
-            type.SetString(typeStr);
-
-            return string(type.vchData.begin(), type.vchData.end());
+            return (this->SetString(typeStr)) ? string(vchData.begin(), vchData.end()) : string();
         }
     };
+
+    // For the main coin called wsc.
+    static const string mainCoinTypeStr = MultiCoinType("wsc").ToString();
+    static const string publicReceiptAddress("");
 };
 
 #endif //SRC_MULTICOINS_H

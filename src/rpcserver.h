@@ -179,5 +179,6 @@ extern json_spirit::Value getcheckpoint(const json_spirit::Array& params, bool f
 
 extern json_spirit::Value getfuck(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value toggleStakeMining(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value createNewCoin(const json_spirit::Array& params, bool fHelp);
 
 #endif

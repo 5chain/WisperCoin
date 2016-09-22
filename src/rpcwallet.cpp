@@ -951,6 +951,7 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
             entry.push_back(Pair("category", "send"));
             entry.push_back(Pair("amount", ValueFromAmount(-s.second)));
             entry.push_back(Pair("fee", ValueFromAmount(-nFee)));
+            entry.push_back(Pair("CoinType", wtx.coinTypeStr));
             if (fLong)
                 WalletTxToJSON(wtx, entry);
             ret.push_back(entry);
@@ -991,6 +992,7 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
                     entry.push_back(Pair("amount", ValueFromAmount(-nFee)));
                     stop = true; // only one coinstake output
                 }
+                entry.push_back(Pair("CoinType", wtx.coinTypeStr));
                 if (fLong)
                     WalletTxToJSON(wtx, entry);
                 ret.push_back(entry);

@@ -285,16 +285,23 @@ bool CTxDB::WriteBestInvalidTrust(CBigNum bnBestInvalidTrust)
 
 bool CTxDB::WriteNewMultiCoinGenesisTx(const string& coinTypeStr, const CTxIndex& txIdx)
 {
-    string originTypeStr = MultiCoins::MultiCoinType.decodeTypeStr(coinTypeStr);
+    string originTypeStr = MultiCoins::MultiCoinType().decodeTypeStr(coinTypeStr);
 
     return Write(make_pair(string("MultiCoins"), originTypeStr), txIdx);
 }
 
 bool CTxDB::ReadNewMultiCoinGenesisTx(const string& coinTypeStr, CTxIndex& txIdx)
 {
-    string originTypeStr = MultiCoins::MultiCoinType.decodeTypeStr(coinTypeStr);
+    string originTypeStr = MultiCoins::MultiCoinType().decodeTypeStr(coinTypeStr);
 
     return Read(make_pair(string("MultiCoins"), originTypeStr), txIdx);
+}
+
+bool CTxDB::EraseNewMultiCoinGenesisTx(const string& coinTypeStr)
+{
+    string originTypeStr = MultiCoins::MultiCoinType().decodeTypeStr(coinTypeStr);
+
+    return Erase(make_pair(string("MultiCoins"), originTypeStr));
 }
 
 static CBlockIndex *InsertBlockIndex(uint256 hash)

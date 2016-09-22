@@ -1106,7 +1106,10 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
             if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
-            if(pcoin->IsCoinStake() && pcoin->GetBlocksToMaturity() > 0)
+            if (pcoin->IsCoinStake() && pcoin->GetBlocksToMaturity() > 0)
+                continue;
+
+            if (pcoin->isCreateNewCoin() && pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
@@ -1443,7 +1446,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
                 // Choose coins to use
                 set<pair<const CWalletTx*,unsigned int> > setCoins;
                 int64_t nValueIn = 0;
-                if (!SelectCoins(nTotalValue, wtxNew.nTime, setCoins, nValueIn, coinControl))
+                if (!SelectCoins(nTotalValue, wtxNew.nTime, setCoins, nValueIn))
                     return false;
                 BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
                 {
@@ -1885,6 +1888,14 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
                      int64_t newCoinAmount, const CTxDestination& address,
                      const CTxDestination& buyerAddress, CWalletTx& newTx)
 {
+    if (!MoneyRange(newCoinAmount))
+        return newTx.DoS(100, error("CWallet::CreateNewCoinTx() : new coin amount is out of range!"));
+
+    CTxDB txdb("r");
+    CTxIndex txIdx;
+    if (txdb.ReadNewMultiCoinGenesisTx(newCoinName, txIdx))
+        return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin name.");
+
     CScript scriptPubKey;
     scriptPubKey.SetDestination(address);
 
@@ -1944,12 +1955,6 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
                     BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
                         newTx.vout.push_back(CTxOut(s.second, s.first));
 
-                    // Choose coins to use
-                    if (newTx.coinTypeStr.find('|') != string::npos)
-                    {
-                        // handle create new coin...
-                    }
-
                     set<pair<const CWalletTx*,unsigned int> > setCoins;
                     int64_t nValueIn = 0;
                     if (!SelectCoins(nTotalValue, newTx.nTime, setCoins, nValueIn))
@@ -1989,8 +1994,8 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
                     // Note how the sequence number is set to max()-1 so that the
                     // nLockTime set above actually works.
                     BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
-                                    newTx.vin.push_back(CTxIn(coin.first->GetHash(),coin.second,CScript(),
-                                                               std::numeric_limits<unsigned int>::max()-1));
+                        newTx.vin.push_back(CTxIn(coin.first->GetHash(),coin.second,CScript(),
+                                                   std::numeric_limits<unsigned int>::max()-1));
 
                     // Sign
                     int nIn = 0;
@@ -2024,7 +2029,7 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
         }
     }
 
-    if (!CommitTransaction(newTx, reservekey))
+    if (newTx.CheckTransaction() && !CommitTransaction(newTx, reservekey))
         return false;
 
     return true;

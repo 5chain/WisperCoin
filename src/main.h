@@ -16,6 +16,7 @@
 
 #include <limits>
 #include <list>
+#include <boost/algorithm/string.hpp>
 
 class CBlock;
 class CBlockIndex;
@@ -201,9 +202,6 @@ public:
     }
 };
 
-
-
-
 enum GetMinFee_mode
 {
     GMF_BLOCK,
@@ -235,9 +233,23 @@ public:
     // wscoin: Add for tx coin type
     std::string coinTypeStr = MultiCoins::mainCoinTypeStr;
 
-    bool isNewCoinCreate() const
+    inline bool isCreateNewCoin() const
     {
         return coinTypeStr.find('|') != string::npos;
+    }
+
+    inline bool getNewCoinName(string& newCoinName) const
+    {
+        vector<string> strVec;
+        boost::split(strVec, this->coinTypeStr, boost::is_any_of("|"));
+        if ((strVec.size() != 2)
+            || (strVec[0] != MultiCoins::mainCoinTypeStr)
+            || !MultiCoins::isCoinNameValid(strVec[1]))
+            return false;
+
+        newCoinName = MultiCoins::MultiCoinType().decodeTypeStr(strVec[1]);
+
+        return true;
     }
 
     CTransaction()
@@ -300,6 +312,9 @@ public:
         int64_t nValueOut = 0;
         BOOST_FOREACH(const CTxOut& txout, vout)
         {
+            if (isCreateNewCoin() && (txout == vout.back()))
+                break;
+
             nValueOut += txout.nValue;
             if (!MoneyRange(txout.nValue) || !MoneyRange(nValueOut))
                 throw std::runtime_error("CTransaction::GetValueOut() : value out of range");

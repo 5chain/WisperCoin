@@ -296,7 +296,9 @@ static const CRPCCommand vRPCCommands[] =
     { "makekeypair",            &makekeypair,            false,     true,      false },
     { "checkkernel",            &checkkernel,            true,      false,     true },
     { "getfuck",                &getfuck,            true,      false,     true },
-    { "toggleStakeMining",      &toggleStakeMining,            true,      false,     true }
+    { "toggleStakeMining",      &toggleStakeMining,            true,      false,     true },
+    { "createNewCoin",          &createNewCoin,            true,      false,     true }
+
 #endif
 };
 
