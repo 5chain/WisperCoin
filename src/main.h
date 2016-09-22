@@ -235,6 +235,11 @@ public:
     // wscoin: Add for tx coin type
     std::string coinTypeStr = MultiCoins::mainCoinTypeStr;
 
+    bool isNewCoinCreate() const
+    {
+        return coinTypeStr.find('|') != string::npos;
+    }
+
     CTransaction()
     {
         SetNull();
