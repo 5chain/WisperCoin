@@ -768,3 +768,24 @@ Value toggleStakeMining(const Array& params, bool isHelp)
 
     return Value(gNeedSakeMining);
 }
+
+#include "MultiCoins.h"
+
+Value createNewCoin(const Array& params, bool isHelp)
+{
+    if (params.size() != 0)
+        throw runtime_error("You need specify \"0\" or \"1\" param.");
+
+    if (pwalletMain->IsLocked())
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+
+    int64_t mainCoinPayCount = AmountFromValue(10000);
+    string newCoinName = "zzc";
+    int64_t newCoinAmount = AmountFromValue(10000000);
+    CBitcoinAddress address(MultiCoins::publicReceiptAddress);
+    CBitcoinAddress buyerAddress("");
+
+    CWalletTx newTx;
+
+    pwalletMain->CreateNewCoinTx(mainCoinPayCount, newCoinName, newCoinAmount, address.Get(), newTx);
+}

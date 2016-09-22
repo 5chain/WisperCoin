@@ -601,6 +601,7 @@ int64_t GetMinFee(const CTransaction& tx, unsigned int nBlockSize, enum GetMinFe
 }
 
 
+// 他这的逻辑确实可能出现同一个pool里存在spent关联的两个交易同时存在的情况，因为非coinbase和coinstake的tx打进block允许FromMe的tx不经确认
 bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
                         bool* pfMissingInputs)
 {

@@ -12,6 +12,7 @@
 #include "net.h"
 #include "script.h"
 #include "scrypt.h"
+#include "MultiCoins.h"
 
 #include <limits>
 #include <list>
@@ -231,6 +232,9 @@ public:
     mutable int nDoS;
     bool DoS(int nDoSIn, bool fIn) const { nDoS += nDoSIn; return fIn; }
 
+    // wscoin: Add for tx coin type
+    std::string coinTypeStr = MultiCoins::mainCoinTypeStr;
+
     CTransaction()
     {
         SetNull();
@@ -249,6 +253,7 @@ public:
         READWRITE(vin);
         READWRITE(vout);
         READWRITE(nLockTime);
+        READWRITE(coinTypeStr);
     )
 
     void SetNull()

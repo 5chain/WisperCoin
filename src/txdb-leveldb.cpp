@@ -19,6 +19,7 @@
 #include "util.h"
 #include "main.h"
 #include "chainparams.h"
+#include "MultiCoins.h"
 
 using namespace std;
 using namespace boost;
@@ -280,6 +281,20 @@ bool CTxDB::ReadBestInvalidTrust(CBigNum& bnBestInvalidTrust)
 bool CTxDB::WriteBestInvalidTrust(CBigNum bnBestInvalidTrust)
 {
     return Write(string("bnBestInvalidTrust"), bnBestInvalidTrust);
+}
+
+bool CTxDB::WriteNewMultiCoinGenesisTx(const string& coinTypeStr, const CTxIndex& txIdx)
+{
+    string originTypeStr = MultiCoins::MultiCoinType.decodeTypeStr(coinTypeStr);
+
+    return Write(make_pair(string("MultiCoins"), originTypeStr), txIdx);
+}
+
+bool CTxDB::ReadNewMultiCoinGenesisTx(const string& coinTypeStr, CTxIndex& txIdx)
+{
+    string originTypeStr = MultiCoins::MultiCoinType.decodeTypeStr(coinTypeStr);
+
+    return Read(make_pair(string("MultiCoins"), originTypeStr), txIdx);
 }
 
 static CBlockIndex *InsertBlockIndex(uint256 hash)

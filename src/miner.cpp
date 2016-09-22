@@ -203,7 +203,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, bool fProofOfStake, int64_t* pFe
                         if (fDebug) assert("mempool transaction missing input" == 0);
                         fMissingInputs = true;
                         if (porphan)
-                            vOrphan.pop_back(); // why???
+                            vOrphan.pop_back(); // why??? For automatic deletion...
                         break;
                     }
 
