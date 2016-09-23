@@ -1873,7 +1873,7 @@ std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64
     return SendMoney(scriptPubKey, nValue, wtxNew, fAskFee);
 }
 
-bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
+bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
                      int64_t newCoinAmount, const CTxDestination& address,
                      const CTxDestination& buyerAddress, CWalletTx& newTx)
 {
@@ -1882,8 +1882,8 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
 
     CTxDB txdb("r");
     CTxIndex txIdx;
-    if (txdb.ReadNewMultiCoinGenesisTx(newCoinName, txIdx))
-        return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin name.");
+    if (txdb.ReadNewMultiCoinGenesisTx(newCoinType, txIdx))
+        return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin type.");
 
     CScript scriptPubKey;
     scriptPubKey.SetDestination(address);
@@ -1900,7 +1900,7 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
     // create tx
     {
         // Fill tx coin type
-        newTx.coinTypeStr += string("|") + MultiCoins::MultiCoinType(newCoinName).ToString();
+        newTx.coinTypeStr += string("|") + MultiCoins::MultiCoinType(newCoinType).ToString();
 
         vector< pair<CScript, int64_t> > vecSend;
         vecSend.push_back(make_pair(scriptPubKey, mainCoinPayCount));

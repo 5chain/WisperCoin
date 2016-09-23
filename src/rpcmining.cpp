@@ -780,13 +780,13 @@ Value createNewCoin(const Array& params, bool isHelp)
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 
     int64_t mainCoinPayCount = AmountFromValue(10000);
-    string newCoinName = "zzc";
+    string newCoinType = "zzc";
     int64_t newCoinAmount = AmountFromValue(10000000);
     CBitcoinAddress address(MultiCoins::publicReceiptAddress);
     CBitcoinAddress buyerAddress("myqtQvZNVRQRuPYmh8mJtfSQaFctRUJNrp");
 
     CWalletTx newTx;
-    if (!pwalletMain->CreateNewCoinTx(mainCoinPayCount, newCoinName, newCoinAmount, address.Get(), buyerAddress.Get(), newTx))
+    if (!pwalletMain->CreateNewCoinTx(mainCoinPayCount, newCoinType, newCoinAmount, address.Get(), buyerAddress.Get(), newTx))
         throw JSONRPCError(RPC_INVALID_PARAMS, "Error: Please enter correct new coin amount.");
 
     return Value::null;

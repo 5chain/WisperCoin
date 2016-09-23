@@ -3,6 +3,8 @@ project(src)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
+add_definitions(-DENABLE_WALLET)
+
 include_directories(
         /opt/local/include
         /opt/local/include/db48

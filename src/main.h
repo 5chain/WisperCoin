@@ -238,16 +238,16 @@ public:
         return coinTypeStr.find('|') != string::npos;
     }
 
-    inline bool getNewCoinName(string& newCoinName) const
+    inline bool getNewCoinType(string& newCoinType) const
     {
         vector<string> strVec;
         boost::split(strVec, this->coinTypeStr, boost::is_any_of("|"));
         if ((strVec.size() != 2)
             || (strVec[0] != MultiCoins::mainCoinTypeStr)
-            || !MultiCoins::isCoinNameValid(strVec[1]))
+            || !MultiCoins::isCoinTypeValid(strVec[1]))
             return false;
 
-        newCoinName = strVec[1];
+        newCoinType = strVec[1];
 
         return true;
     }
@@ -257,7 +257,7 @@ public:
         if (coinType != this->coinTypeStr)
         {
             string newCoinType;
-            if (!this->getNewCoinName(newCoinType))
+            if (!this->getNewCoinType(newCoinType))
                 return false;
 
             return (coinType == newCoinType);

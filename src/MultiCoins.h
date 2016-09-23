@@ -12,14 +12,14 @@ using namespace std;
 
 namespace MultiCoins
 {
-    static const size_t MIN_COIN_NAME_LENGTH = 3;
-    static const size_t MAX_COIN_NAME_LENGTH = 10;
+    static const size_t MIN_COIN_TYPE_LENGTH = 3;
+    static const size_t MAX_COIN_TYPE_LENGTH = 10;
 
     static const string publicReceiptAddress("mwgB4hAhMPzE4i2omvC5kCb6HGoeFT5GCu");
 
-    static bool isCoinNameValid(const string& coinName)
+    static bool isCoinTypeValid(const string& coinType)
     {
-        return ((coinName.size() >= MIN_COIN_NAME_LENGTH) && (coinName.size() <= MAX_COIN_NAME_LENGTH));
+        return ((coinType.size() >= MIN_COIN_TYPE_LENGTH) && (coinType.size() <= MAX_COIN_TYPE_LENGTH));
     }
 
     static bool isReceiptAddressValid(CTxDestination& destAddress)

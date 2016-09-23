@@ -212,7 +212,7 @@ public:
     std::string SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, bool fAskFee);
     std::string SendMoneyToDestination(const CTxDestination &address, int64_t nValue, CWalletTx &wtxNew, bool fAskFee);
 
-    bool CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
+    bool CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
                          int64_t newCoinAmount, const CTxDestination &address,
                          const CTxDestination& buyerAddress, CWalletTx& wtxNew);
 

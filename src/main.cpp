@@ -595,10 +595,10 @@ bool CTransaction::CheckTransaction() const
         if (vout.size() < 2)
             return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong vout!"));
 
-        string newCoinName;
+        string newCoinType;
         CTxDestination address;
 
-        if (!this->getNewCoinName(newCoinName)
+        if (!this->getNewCoinType(newCoinType)
             || !ExtractDestination(vout.front().scriptPubKey, address)
             || !MultiCoins::isReceiptAddressValid(address))
             return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
@@ -682,20 +682,20 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
 
         if (tx.isCreateNewCoin())
         {
-            string newCoinName;
-            if (tx.getNewCoinName(newCoinName))
+            string newCoinType;
+            if (tx.getNewCoinType(newCoinType))
             {
                 CTxIndex txIdx;
-                if (txdb.ReadNewMultiCoinGenesisTx(newCoinName, txIdx))
-                    return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin name.");
+                if (txdb.ReadNewMultiCoinGenesisTx(newCoinType, txIdx))
+                    return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin type.");
 
                 BOOST_FOREACH(const PAIRTYPE(uint256, CTransaction)& txPair, pool.mapTx)
                 {
                     if (txPair.second.isCreateNewCoin())
                     {
-                        string coinName;
-                        if (txPair.second.getNewCoinName(coinName) && (coinName == newCoinName))
-                            return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin name in mempool.");
+                        string coinType;
+                        if (txPair.second.getNewCoinType(coinType) && (coinType == newCoinType))
+                            return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin type in mempool.");
                     }
                 }
             }
@@ -1430,9 +1430,9 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
     {
         if (tx.isCreateNewCoin())
         {
-            string newCoinName;
-            if (tx.getNewCoinName(newCoinName))
-                txdb.EraseNewMultiCoinGenesisTx(newCoinName);
+            string newCoinType;
+            if (tx.getNewCoinType(newCoinType))
+                txdb.EraseNewMultiCoinGenesisTx(newCoinType);
         }
     }
 
@@ -1554,9 +1554,9 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
 
         if (tx.isCreateNewCoin())
         {
-            string newCoinName;
-            if (tx.getNewCoinName(newCoinName))
-                txdb.WriteNewMultiCoinGenesisTx(newCoinName, mapQueuedChanges[hashTx]);
+            string newCoinType;
+            if (tx.getNewCoinType(newCoinType))
+                txdb.WriteNewMultiCoinGenesisTx(newCoinType, mapQueuedChanges[hashTx]);
         }
     }
 
