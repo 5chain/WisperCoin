@@ -218,6 +218,13 @@ int64_t GetMinFee(const CTransaction& tx, unsigned int nBlockSize = 1, enum GetM
  */
 class CTransaction
 {
+private:
+    // Add for tx coin type
+    string mCoinTypeStr = MultiCoins::mainCoinTypeStr;
+
+    // Only in memory
+    MultiCoins::CoinType mCoinType = MultiCoins::CoinType(MultiCoins::mainCoinTypeStr);
+
 public:
     static const int CURRENT_VERSION=1;
     int nVersion;
@@ -230,40 +237,31 @@ public:
     mutable int nDoS;
     bool DoS(int nDoSIn, bool fIn) const { nDoS += nDoSIn; return fIn; }
 
-    // wscoin: Add for tx coin type
-    std::string coinTypeStr = MultiCoins::mainCoinTypeStr;
+    inline void setCoinTypeStr(const string &coinTypeStr)
+    {
+        mCoinTypeStr = coinTypeStr;
+
+        mCoinType = MultiCoins::CoinType(mCoinTypeStr);
+    }
+
+    inline string& getCoinTypeStr() const
+    {
+        return mCoinTypeStr;
+    }
 
     inline bool isCreateNewCoin() const
     {
-        return coinTypeStr.find('|') != string::npos;
+        return mCoinType.isCreateNewCoin();
     }
 
     inline bool getNewCoinType(string& newCoinType) const
     {
-        vector<string> strVec;
-        boost::split(strVec, this->coinTypeStr, boost::is_any_of("|"));
-        if ((strVec.size() != 2)
-            || (strVec[0] != MultiCoins::mainCoinTypeStr)
-            || !MultiCoins::isCoinTypeValid(strVec[1]))
-            return false;
-
-        newCoinType = strVec[1];
-
-        return true;
+        return mCoinType.getNewCoinType(newCoinType);
     }
 
-    inline bool isFitCoinType(const string& coinType) const
+    inline bool isFitCoinType(const string& specifiedType, unsigned int outVecIdx) const
     {
-        if (coinType != this->coinTypeStr)
-        {
-            string newCoinType;
-            if (!this->getNewCoinType(newCoinType))
-                return false;
-
-            return (coinType == newCoinType);
-        }
-
-        return true;
+        return mCoinType.isFitCoinType(specifiedType, outVecIdx, vout.size());
     }
 
     CTransaction()
@@ -284,7 +282,7 @@ public:
         READWRITE(vin);
         READWRITE(vout);
         READWRITE(nLockTime);
-        READWRITE(coinTypeStr);
+        READWRITE(mCoinTypeStr);
     )
 
     void SetNull()
@@ -910,7 +908,7 @@ public:
     int64_t nMoneySupply;
 
     unsigned int nFlags;  // ppcoin: block index flags
-    enum  
+    enum
     {
         BLOCK_PROOF_OF_STAKE = (1 << 0), // is proof-of-stake block
         BLOCK_STAKE_ENTROPY  = (1 << 1), // entropy bit for stake modifier

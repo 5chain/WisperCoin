@@ -274,16 +274,18 @@ public:
     }
     int64_t GetCredit(const CTransaction& tx, const string& coinType = MultiCoins::mainCoinTypeStr) const
     {
-        if (!tx.isFitCoinType(coinType))
-            return 0;
-
         int64_t nCredit = 0;
-        BOOST_FOREACH(const CTxOut& txout, tx.vout)
+        for (int id = 0, size = tx.vout.size(); id < size; ++id)
         {
-            nCredit += GetCredit(txout);
-            if (!MoneyRange(nCredit))
-                throw std::runtime_error("CWallet::GetCredit() : value out of range");
+            if (tx.isFitCoinType(coinType, id))
+            {
+                nCredit += GetCredit(tx.vout[id]);
+
+                if (!MoneyRange(nCredit))
+                    throw std::runtime_error("CWallet::GetCredit() : value out of range");
+            }
         }
+
         return nCredit;
     }
     int64_t GetChange(const CTransaction& tx) const
@@ -610,9 +612,6 @@ public:
         if (GetBlocksToMaturity() > 0)
             return 0;
 
-        if (!this->isFitCoinType(coinType))
-            return 0;
-
         // GetBalance can assume transactions in mapWallet won't change
         if (fUseCache && fCreditCached)
             return nCreditCached;
@@ -627,21 +626,21 @@ public:
         if (GetBlocksToMaturity() > 0)
             return 0;
 
-        if (!this->isFitCoinType(coinType))
-            return 0;
-
         if (fUseCache && fAvailableCreditCached)
             return nAvailableCreditCached;
 
         int64_t nCredit = 0;
-        for (unsigned int i = 0; i < vout.size(); i++)
+        for (unsigned int id = 0; id < vout.size(); id++)
         {
-            if (!IsSpent(i))
+            if (!IsSpent(id))
             {
-                const CTxOut &txout = vout[i];
-                nCredit += pwallet->GetCredit(txout);
-                if (!MoneyRange(nCredit))
-                    throw std::runtime_error("CWalletTx::GetAvailableCredit() : value out of range");
+                if (this->isFitCoinType(coinType, id))
+                {
+                    nCredit += pwallet->GetCredit(vout[id]);
+
+                    if (!MoneyRange(nCredit))
+                        throw std::runtime_error("CWalletTx::GetAvailableCredit() : value out of range");
+                }
             }
         }
 

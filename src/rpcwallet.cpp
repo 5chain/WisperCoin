@@ -278,7 +278,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
     // Wallet comments
     CWalletTx wtx;
     if (params.size() > 2 && params[2].type() != null_type && !params[2].get_str().empty())
-        wtx.coinTypeStr = MultiCoins::MultiCoinType(params[2].get_str()).ToString();
+        wtx.setCoinTypeStr(MultiCoins::MultiCoinType(params[2].get_str()).ToString());
     if (params.size() > 3 && params[3].type() != null_type && !params[3].get_str().empty())
         wtx.mapValue["comment"] = params[3].get_str();
     if (params.size() > 4 && params[4].type() != null_type && !params[4].get_str().empty())
@@ -609,7 +609,7 @@ Value sendfrom(const Array& params, bool fHelp)
     CWalletTx wtx;
     wtx.strFromAccount = strAccount;
     if (params.size() > 4 && params[4].type() != null_type && !params[4].get_str().empty())
-        wtx.coinTypeStr = MultiCoins::MultiCoinType(params[2].get_str()).ToString();
+        wtx.setCoinTypeStr(MultiCoins::MultiCoinType(params[2].get_str()).ToString());
     if (params.size() > 5 && params[5].type() != null_type && !params[5].get_str().empty())
         wtx.mapValue["comment"] = params[5].get_str();
     if (params.size() > 6 && params[6].type() != null_type && !params[6].get_str().empty())
@@ -958,7 +958,7 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
             entry.push_back(Pair("category", "send"));
             entry.push_back(Pair("amount", ValueFromAmount(-s.second)));
             entry.push_back(Pair("fee", ValueFromAmount(-nFee)));
-            entry.push_back(Pair("CoinType", wtx.coinTypeStr));
+            entry.push_back(Pair("CoinType", wtx.getCoinTypeStr()));
             if (fLong)
                 WalletTxToJSON(wtx, entry);
             ret.push_back(entry);
@@ -999,7 +999,7 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
                     entry.push_back(Pair("amount", ValueFromAmount(-nFee)));
                     stop = true; // only one coinstake output
                 }
-                entry.push_back(Pair("CoinType", wtx.coinTypeStr));
+                entry.push_back(Pair("CoinType", wtx.getCoinTypeStr()));
                 if (fLong)
                     WalletTxToJSON(wtx, entry);
                 ret.push_back(entry);

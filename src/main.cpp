@@ -583,9 +583,10 @@ bool CTransaction::CheckTransaction() const
         {
             CTransaction txPrev;
             CTxIndex txindex;
+            // If not find txPrev,it should be an orphan tx.
             if (txPrev.ReadFromDisk(txDB, txin.prevout, txindex) || mempool.lookup(txin.prevout.hash, txPrev))
             {
-                if (!txPrev.isFitCoinType(this->coinTypeStr))
+                if (!txPrev.isFitCoinType(this->getCoinTypeStr(), txin.prevout.n))
                     return DoS(100, error("CTransaction::CheckTransaction() : tx coin type isnot the same as prevout!"));
             }
         }
@@ -2013,7 +2014,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
             return DoS(100, error("CheckBlock() : more than one coinbase"));
 
     // pow must reward the main coin type
-    if (vtx[0].coinTypeStr != MultiCoins::mainCoinTypeStr)
+    if (vtx[0].getCoinTypeStr() != MultiCoins::mainCoinTypeStr)
         return DoS(100, error("CheckBlock() : pow must reward the main coin type!"));
 
     if (IsProofOfStake())
@@ -2030,7 +2031,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                 return DoS(100, error("CheckBlock() : more than one coinstake"));
 
         // pos must reward the main coin type
-        if (vtx[1].coinTypeStr != MultiCoins::mainCoinTypeStr)
+        if (vtx[1].getCoinTypeStr() != MultiCoins::mainCoinTypeStr)
             return DoS(100, error("CheckBlock() : pos must reward the main coin type!"));
     }
 

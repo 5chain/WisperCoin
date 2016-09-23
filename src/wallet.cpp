@@ -1094,9 +1094,6 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
         {
             const CWalletTx* pcoin = &(*it).second;
 
-            if (!pcoin->isFitCoinType(coinType))
-                continue;
-
             if (!IsFinalTx(*pcoin))
                 continue;
 
@@ -1111,9 +1108,17 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
             if (nDepth < 0)
                 continue;
 
-            for (unsigned int i = 0; i < pcoin->vout.size(); i++)
-                if (!(pcoin->IsSpent(i)) && IsMine(pcoin->vout[i]) && pcoin->vout[i].nValue >= nMinimumInputValue)
-                    vCoins.push_back(COutput(pcoin, i, nDepth));
+            for (unsigned int id = 0; id < pcoin->vout.size(); id++)
+            {
+                if (!(pcoin->IsSpent(id))
+                    && IsMine(pcoin->vout[id])
+                    && (pcoin->vout[id].nValue >= nMinimumInputValue)
+                    && pcoin->isFitCoinType(coinType, id))
+                {
+                    vCoins.push_back(COutput(pcoin, id, nDepth));
+                }
+            }
+
         }
     }
 }
@@ -1127,9 +1132,6 @@ void CWallet::AvailableCoinsForStaking(vector<COutput>& vCoins, unsigned int nSp
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-
-            if (!pcoin->isFitCoinType(coinType))
-                continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
             if (nDepth < 1)
@@ -1150,9 +1152,16 @@ void CWallet::AvailableCoinsForStaking(vector<COutput>& vCoins, unsigned int nSp
             if (pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
-            for (unsigned int i = 0; i < pcoin->vout.size(); i++)
-                if (!(pcoin->IsSpent(i)) && IsMine(pcoin->vout[i]) && pcoin->vout[i].nValue >= nMinimumInputValue)
-                    vCoins.push_back(COutput(pcoin, i, nDepth));
+            for (unsigned int id = 0; id < pcoin->vout.size(); id++)
+            {
+                if (!(pcoin->IsSpent(id))
+                    && IsMine(pcoin->vout[id])
+                    && (pcoin->vout[id].nValue >= nMinimumInputValue)
+                    && pcoin->isFitCoinType(coinType, id))
+                {
+                    vCoins.push_back(COutput(pcoin, id, nDepth));
+                }
+            }
         }
     }
 }
@@ -1442,7 +1451,7 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > 
                 // Choose coins to use
                 set<pair<const CWalletTx*,unsigned int> > setCoins;
                 int64_t nValueIn = 0;
-                if (!SelectCoins(nTotalValue, wtxNew.nTime, setCoins, nValueIn, wtxNew.coinTypeStr))
+                if (!SelectCoins(nTotalValue, wtxNew.nTime, setCoins, nValueIn, wtxNew.getCoinTypeStr()))
                     return false;
                 BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
                 {
@@ -1602,7 +1611,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     int64_t nValueIn = 0;
 
     // Select coins with suitable depth
-    if (!SelectCoinsForStaking(nBalance - nReserveBalance, txNew.nTime, setCoins, nValueIn, txNew.coinTypeStr))
+    if (!SelectCoinsForStaking(nBalance - nReserveBalance, txNew.nTime, setCoins, nValueIn, txNew.getCoinTypeStr()))
         return false;
 
     if (setCoins.empty())
@@ -1900,7 +1909,7 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
     // create tx
     {
         // Fill tx coin type
-        newTx.coinTypeStr += string("|") + MultiCoins::MultiCoinType(newCoinType).ToString();
+        newTx.setCoinTypeStr(newTx.getCoinTypeStr() + string("|") + MultiCoins::MultiCoinType(newCoinType).ToString());
 
         vector< pair<CScript, int64_t> > vecSend;
         vecSend.push_back(make_pair(scriptPubKey, mainCoinPayCount));
