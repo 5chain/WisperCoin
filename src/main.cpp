@@ -596,12 +596,8 @@ bool CTransaction::CheckTransaction() const
         if (vout.size() < 2)
             return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong vout!"));
 
-        string newCoinType;
         CTxDestination address;
-
-        if (!this->getNewCoinType(newCoinType)
-            || !ExtractDestination(vout.front().scriptPubKey, address)
-            || !MultiCoins::isReceiptAddressValid(address))
+        if (!ExtractDestination(vout.front().scriptPubKey, address) || !MultiCoins::isReceiptAddressValid(address))
             return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
     }
 
@@ -1310,7 +1306,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs, map<uint256, CTx
     {
         int64_t nValueIn = 0;
         int64_t nFees = 0;
-        for (unsigned int i = 0; i < vin.size(); i++) // fetch和connect inputs时也要保证isFitCoinType吧？
+        for (unsigned int i = 0; i < vin.size(); i++)
         {
             COutPoint prevout = vin[i].prevout;
             assert(inputs.count(prevout.hash) > 0);
@@ -2014,7 +2010,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
             return DoS(100, error("CheckBlock() : more than one coinbase"));
 
     // pow must reward the main coin type
-    if (vtx[0].getCoinTypeStr() != MultiCoins::mainCoinTypeStr)
+    if (!vtx[0].isMainCoinType())
         return DoS(100, error("CheckBlock() : pow must reward the main coin type!"));
 
     if (IsProofOfStake())
@@ -2031,7 +2027,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                 return DoS(100, error("CheckBlock() : more than one coinstake"));
 
         // pos must reward the main coin type
-        if (vtx[1].getCoinTypeStr() != MultiCoins::mainCoinTypeStr)
+        if (!vtx[1].isMainCoinType())
             return DoS(100, error("CheckBlock() : pos must reward the main coin type!"));
     }
 

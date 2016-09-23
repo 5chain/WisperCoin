@@ -196,8 +196,8 @@ public:
     int ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false);
     void ReacceptWalletTransactions();
     void ResendWalletTransactions(bool fForce = false);
-    int64_t GetBalance() const;
-    int64_t GetUnconfirmedBalance() const;
+    int64_t GetBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
+    int64_t GetUnconfirmedBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
     int64_t GetImmatureBalance() const;
     int64_t GetStake() const;
     int64_t GetNewMint() const;
@@ -243,7 +243,10 @@ public:
             throw std::runtime_error("CWallet::GetCredit() : value out of range");
         return (IsMine(txout) ? txout.nValue : 0);
     }
+
     bool IsChange(const CTxOut& txout) const;
+
+    // NOTE: Before calling this, you must check the tx coin type!
     int64_t GetChange(const CTxOut& txout) const
     {
         if (!MoneyRange(txout.nValue))
@@ -264,7 +267,7 @@ public:
     int64_t GetDebit(const CTransaction& tx) const
     {
         int64_t nDebit = 0;
-        BOOST_FOREACH(const CTxIn& txin, tx.vin)
+        BOOST_FOREACH(const CTxIn& txin, tx.vin) // 不对，这儿没法用isFitCoinType这么搞。。。
         {
             nDebit += GetDebit(txin);
             if (!MoneyRange(nDebit))
@@ -288,15 +291,20 @@ public:
 
         return nCredit;
     }
-    int64_t GetChange(const CTransaction& tx) const
+    int64_t GetChange(const CTransaction& tx, const string& coinType = MultiCoins::mainCoinTypeStr) const
     {
         int64_t nChange = 0;
-        BOOST_FOREACH(const CTxOut& txout, tx.vout)
+        for (int id = 0, size = tx.vout.size(); id < size; ++id)
         {
-            nChange += GetChange(txout);
-            if (!MoneyRange(nChange))
-                throw std::runtime_error("CWallet::GetChange() : value out of range");
+            if (tx.isFitCoinType(coinType, id))
+            {
+                nChange += GetChange(tx.vout[id]);
+
+                if (!MoneyRange(nChange))
+                    throw std::runtime_error("CWallet::GetChange() : value out of range");
+            }
         }
+
         return nChange;
     }
     void SetBestChain(const CBlockLocator& loc);
@@ -615,12 +623,12 @@ public:
         // GetBalance can assume transactions in mapWallet won't change
         if (fUseCache && fCreditCached)
             return nCreditCached;
-        nCreditCached = pwallet->GetCredit(*this);
+        nCreditCached = pwallet->GetCredit(*this, coinType);
         fCreditCached = true;
         return nCreditCached;
     }
 
-    int64_t GetAvailableCredit(bool fUseCache=true, const string& coinType = MultiCoins::mainCoinTypeStr) const
+    int64_t GetAvailableCredit(const string& coinType = MultiCoins::mainCoinTypeStr, bool fUseCache=true) const
     {
         // Must wait until coinbase is safely deep enough in the chain before valuing it
         if (GetBlocksToMaturity() > 0)

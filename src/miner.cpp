@@ -119,6 +119,9 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, bool fProofOfStake, int64_t* pFe
     txNew.vin[0].prevout.SetNull();
     txNew.vout.resize(1);
 
+    // Must be main coin type
+    txNew.setCoinTypeStr(MultiCoins::mainCoinTypeStr);
+
     if (!fProofOfStake)
     {
         CPubKey pubkey;

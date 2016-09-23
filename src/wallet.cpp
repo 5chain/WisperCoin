@@ -622,19 +622,19 @@ bool CWallet::IsMine(const CTxIn &txin) const
     return false;
 }
 
+// NOTE: Before calling this, you must check the tx coin type!
 int64_t CWallet::GetDebit(const CTxIn &txin) const
 {
+    LOCK(cs_wallet);
+    map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(txin.prevout.hash);
+    if (mi != mapWallet.end())
     {
-        LOCK(cs_wallet);
-        map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(txin.prevout.hash);
-        if (mi != mapWallet.end())
-        {
-            const CWalletTx& prev = (*mi).second;
-            if (txin.prevout.n < prev.vout.size())
-                if (IsMine(prev.vout[txin.prevout.n]))
-                    return prev.vout[txin.prevout.n].nValue;
-        }
+        const CWalletTx &prev = (*mi).second;
+        if (txin.prevout.n < prev.vout.size())
+            if (IsMine(prev.vout[txin.prevout.n]))
+                return prev.vout[txin.prevout.n].nValue;
     }
+
     return 0;
 }
 
@@ -1037,7 +1037,7 @@ void CWallet::ResendWalletTransactions(bool fForce)
 //
 
 
-int64_t CWallet::GetBalance() const
+int64_t CWallet::GetBalance(const string& coinType) const
 {
     int64_t nTotal = 0;
     {
@@ -1046,14 +1046,14 @@ int64_t CWallet::GetBalance() const
         {
             const CWalletTx* pcoin = &(*it).second;
             if (pcoin->IsTrusted())
-                nTotal += pcoin->GetAvailableCredit();
+                nTotal += pcoin->GetAvailableCredit(coinType);
         }
     }
 
     return nTotal;
 }
 
-int64_t CWallet::GetUnconfirmedBalance() const
+int64_t CWallet::GetUnconfirmedBalance(const string& coinType) const
 {
     int64_t nTotal = 0;
     {
@@ -1062,7 +1062,7 @@ int64_t CWallet::GetUnconfirmedBalance() const
         {
             const CWalletTx* pcoin = &(*it).second;
             if (!IsFinalTx(*pcoin) || (!pcoin->IsTrusted() && pcoin->GetDepthInMainChain() == 0))
-                nTotal += pcoin->GetAvailableCredit();
+                nTotal += pcoin->GetAvailableCredit(coinType);
         }
     }
     return nTotal;
@@ -1594,6 +1594,9 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     txNew.vin.clear();
     txNew.vout.clear();
 
+    // Must be main coin type
+    txNew.setCoinTypeStr(MultiCoins::mainCoinTypeStr);
+
     // Mark coin stake transaction
     CScript scriptEmpty;
     scriptEmpty.clear();
@@ -1611,7 +1614,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     int64_t nValueIn = 0;
 
     // Select coins with suitable depth
-    if (!SelectCoinsForStaking(nBalance - nReserveBalance, txNew.nTime, setCoins, nValueIn, txNew.getCoinTypeStr()))
+    if (!SelectCoinsForStaking(nBalance - nReserveBalance, txNew.nTime, setCoins, nValueIn))
         return false;
 
     if (setCoins.empty())

@@ -264,6 +264,11 @@ public:
         return mCoinType.isFitCoinType(specifiedType, outVecIdx, vout.size());
     }
 
+    inline bool isMainCoinType()
+    {
+        return (mCoinType == MultiCoins::mainCoinTypeStr);
+    }
+
     CTransaction()
     {
         SetNull();
