@@ -599,7 +599,7 @@ bool CTransaction::CheckTransaction() const
         CTxDestination address;
 
         if (!this->getNewCoinName(newCoinName)
-            || !ExtractDestination(vout.back().scriptPubKey, address)
+            || !ExtractDestination(vout.front().scriptPubKey, address)
             || !MultiCoins::isReceiptAddressValid(address))
             return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
     }
@@ -1309,7 +1309,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs, map<uint256, CTx
     {
         int64_t nValueIn = 0;
         int64_t nFees = 0;
-        for (unsigned int i = 0; i < vin.size(); i++)
+        for (unsigned int i = 0; i < vin.size(); i++) // fetch和connect inputs时也要保证isFitCoinType吧？
         {
             COutPoint prevout = vin[i].prevout;
             assert(inputs.count(prevout.hash) > 0);

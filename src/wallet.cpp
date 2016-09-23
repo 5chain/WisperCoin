@@ -2018,7 +2018,7 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinName,
         }
     }
 
-    if (newTx.CheckTransaction() && !CommitTransaction(newTx, reservekey))
+    if (!newTx.CheckTransaction() || !CommitTransaction(newTx, reservekey))
         return false;
 
     return true;

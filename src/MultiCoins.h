@@ -27,18 +27,28 @@ namespace MultiCoins
         return (destAddress == CBitcoinAddress(publicReceiptAddress).Get());
     }
 
-    class MultiCoinType : public CBase58Data
+    class MultiCoinType //: public CBase58Data
     {
     public:
         MultiCoinType(const std::string& originTypeStr = string())
         {
-            SetData(Params().Base58Prefix(CChainParams::COIN_TYPE), originTypeStr.c_str(), originTypeStr.size());
+            mType = originTypeStr;
+            //SetData(Params().Base58Prefix(CChainParams::COIN_TYPE), originTypeStr.c_str(), originTypeStr.size());
         }
 
-        string decodeTypeStr(const string& typeStr)
+        string decodeTypeStr()
         {
-            return (this->SetString(typeStr)) ? string(vchData.begin(), vchData.end()) : string();
+            //return (this->SetString(typeStr)) ? string(vchData.begin(), vchData.end()) : string();
+            return mType;
         }
+
+        string ToString()
+        {
+            return mType;
+        }
+
+    private:
+        string mType;
     };
 
     static const string mainCoinTypeStr = MultiCoinType("wsc").ToString();
