@@ -2012,6 +2012,10 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
         if (vtx[i].IsCoinBase())
             return DoS(100, error("CheckBlock() : more than one coinbase"));
 
+    // pow must reward the main coin type
+    if (vtx[0].coinTypeStr != MultiCoins::mainCoinTypeStr)
+        return DoS(100, error("CheckBlock() : pow must reward the main coin type!"));
+
     if (IsProofOfStake())
     {
         // Coinbase output should be empty if proof-of-stake block
@@ -2024,6 +2028,10 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
         for (unsigned int i = 2; i < vtx.size(); i++)
             if (vtx[i].IsCoinStake())
                 return DoS(100, error("CheckBlock() : more than one coinstake"));
+
+        // pos must reward the main coin type
+        if (vtx[1].coinTypeStr != MultiCoins::mainCoinTypeStr)
+            return DoS(100, error("CheckBlock() : pos must reward the main coin type!"));
     }
 
     // Check proof-of-stake block signature
