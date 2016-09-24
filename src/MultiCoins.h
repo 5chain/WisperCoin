@@ -186,7 +186,7 @@ namespace MultiCoins
                     // See createNewCoinTx() description.
                     if (tx.vout.size() == 3)
                     {
-                        float ratioNew2Main = (float)((double)tx.vout[0].n / tx.vout[2].n);
+                        float ratioNew2Main = (float)((double)tx.vout[0].nValue / tx.vout[2].nValue);
 
                         return newCoinFee * ratioNew2Main;
                     }
