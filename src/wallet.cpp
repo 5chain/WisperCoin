@@ -1885,6 +1885,7 @@ std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64
     return SendMoney(scriptPubKey, nValue, wtxNew, fAskFee);
 }
 
+// NOTE: Must be three outs, 1 is main coin to public receipt, 2 is main coin fee to public receipt, 3 is new coin to owner
 bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
                      int64_t newCoinAmount, const CTxDestination& address,
                      const CTxDestination& buyerAddress, CWalletTx& newTx)

@@ -266,7 +266,13 @@ public:
 
     inline bool isMainCoinType() const
     {
-        return (mCoinTypeStr == MultiCoins::mainCoinTypeStr);
+        return mCoinType.isMainCoinType();
+    }
+
+    // NOTE: for create new, this returns the main coin type
+    inline string getCoinType() const
+    {
+        return mCoinType.getCoinType();
     }
 
     CTransaction()
