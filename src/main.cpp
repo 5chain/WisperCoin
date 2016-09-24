@@ -17,6 +17,7 @@
 #include "txdb.h"
 #include "txmempool.h"
 #include "ui_interface.h"
+#include "MultiCoins.h"
 
 using namespace std;
 using namespace boost;
@@ -597,7 +598,7 @@ bool CTransaction::CheckTransaction() const
             return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong vout!"));
 
         CTxDestination address;
-        if (!ExtractDestination(vout.front().scriptPubKey, address) || !MultiCoins::isReceiptAddressValid(address))
+        if (!ExtractDestination(vout.front().scriptPubKey, address) || !MultiCoins::isSentToReceiptAddress(address))
             return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
     }
 
@@ -627,8 +628,7 @@ int64_t GetMinFee(const CTransaction& tx, unsigned int nBlockSize, enum GetMinFe
 
 
 // 他这的逻辑确实可能出现同一个pool里存在spent关联的两个交易同时存在的情况，因为非coinbase和coinstake的tx打进block允许FromMe的tx不经确认
-bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
-                        bool* pfMissingInputs)
+bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool* pfMissingInputs)
 {
     AssertLockHeld(cs_main);
     if (pfMissingInputs)
@@ -683,8 +683,8 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
             if (tx.getNewCoinType(newCoinType))
             {
                 CTxIndex txIdx;
-                if (txdb.ReadNewMultiCoinGenesisTx(newCoinType, txIdx))
-                    return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin type.");
+                if (txdb.ReadNewCoinGenesisTx(newCoinType, txIdx))
+                    return error("AcceptToMemoryPool : ReadNewCoinGenesisTx found dumplicate new coin type.");
 
                 BOOST_FOREACH(const PAIRTYPE(uint256, CTransaction)& txPair, pool.mapTx)
                 {
@@ -692,7 +692,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
                     {
                         string coinType;
                         if (txPair.second.getNewCoinType(coinType) && (coinType == newCoinType))
-                            return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin type in mempool.");
+                            return error("AcceptToMemoryPool : ReadNewCoinGenesisTx found dumplicate new coin type in mempool.");
                     }
                 }
             }
@@ -726,38 +726,11 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
                           error("AcceptToMemoryPool : too many sigops %s, %d > %d",
                                 hash.ToString(), nSigOps, MAX_TX_SIGOPS));
 
-        int64_t nFees = tx.GetValueIn(mapInputs)-tx.GetValueOut();
-        unsigned int nSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
-
-        // Don't accept it if it can't get into a block
-        int64_t txMinFee = GetMinFee(tx, 1000, GMF_RELAY, nSize);
-        if ((fLimitFree && nFees < txMinFee) || (!fLimitFree && nFees < MIN_TX_FEE))
+        int64_t fee = MultiCoins::getFeeInTx(tx);
+        if (!MultiCoins::isFeeValid(fee))
             return error("AcceptToMemoryPool : not enough fees %s, %d < %d",
                          hash.ToString(),
-                         nFees, txMinFee);
-
-        // Continuously rate-limit free transactions
-        // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
-        // be annoying or make others' transactions take longer to confirm.
-        if (fLimitFree && nFees < MIN_RELAY_TX_FEE)
-        {
-            static CCriticalSection csFreeLimiter;
-            static double dFreeCount;
-            static int64_t nLastTime;
-            int64_t nNow = GetTime();
-
-            LOCK(csFreeLimiter);
-
-            // Use an exponentially decaying ~10-minute window:
-            dFreeCount *= pow(1.0 - 1.0/600.0, (double)(nNow - nLastTime));
-            nLastTime = nNow;
-            // -limitfreerelay unit is thousand-bytes-per-minute
-            // At default rate it would take over a month to fill 1GB
-            if (dFreeCount > GetArg("-limitfreerelay", 15)*10*1000)
-                return error("AcceptToMemoryPool : free transaction rejected by rate limiter");
-            LogPrint("mempool", "Rate limit dFreeCount: %g => %g\n", dFreeCount, dFreeCount+nSize);
-            dFreeCount += nSize;
-        }
+                         fee, MultiCoins::MIN_FEE);
 
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
@@ -839,9 +812,9 @@ int CMerkleTx::GetBlocksToMaturity() const
 }
 
 
-bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree)
+bool CMerkleTx::AcceptToMemoryPool()
 {
-    return ::AcceptToMemoryPool(mempool, *this, fLimitFree, NULL);
+    return ::AcceptToMemoryPool(mempool, *this, NULL);
 }
 
 
@@ -857,10 +830,10 @@ bool CWalletTx::AcceptWalletTransaction(CTxDB& txdb)
             {
                 uint256 hash = tx.GetHash();
                 if (!mempool.exists(hash) && !txdb.ContainsTx(hash))
-                    tx.AcceptToMemoryPool(false);
+                    tx.AcceptToMemoryPool();
             }
         }
-        return AcceptToMemoryPool(false);
+        return AcceptToMemoryPool();
     }
     return false;
 }
@@ -1432,7 +1405,7 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         {
             string newCoinType;
             if (tx.getNewCoinType(newCoinType))
-                txdb.EraseNewMultiCoinGenesisTx(newCoinType);
+                txdb.EraseNewCoinGenesisTx(newCoinType);
         }
     }
 
@@ -1556,7 +1529,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
         {
             string newCoinType;
             if (tx.getNewCoinType(newCoinType))
-                txdb.WriteNewMultiCoinGenesisTx(newCoinType, mapQueuedChanges[hashTx]);
+                txdb.WriteNewCoinGenesisTx(newCoinType, mapQueuedChanges[hashTx]);
         }
     }
 
@@ -1702,7 +1675,7 @@ bool static Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
 
     // Resurrect memory transactions that were in the disconnected branch
     BOOST_FOREACH(CTransaction& tx, vResurrect)
-        AcceptToMemoryPool(mempool, tx, false, NULL);
+        AcceptToMemoryPool(mempool, tx, NULL);
 
     // Delete redundant memory transactions that are in the connected branch
     BOOST_FOREACH(CTransaction& tx, vDelete) {
@@ -3274,7 +3247,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
         mapAlreadyAskedFor.erase(inv);
 
-        if (AcceptToMemoryPool(mempool, tx, true, &fMissingInputs))
+        if (AcceptToMemoryPool(mempool, tx, &fMissingInputs))
         {
             RelayTransaction(tx, inv.hash);
             vWorkQueue.push_back(inv.hash);
@@ -3294,7 +3267,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                     CTransaction& orphanTx = mapOrphanTransactions[orphanTxHash];
                     bool fMissingInputs2 = false;
 
-                    if (AcceptToMemoryPool(mempool, orphanTx, true, &fMissingInputs2))
+                    if (AcceptToMemoryPool(mempool, orphanTx, &fMissingInputs2))
                     {
                         LogPrint("mempool", "   accepted orphan tx %s\n", orphanTxHash.ToString());
                         RelayTransaction(orphanTx, orphanTxHash);

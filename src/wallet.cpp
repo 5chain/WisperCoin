@@ -1817,7 +1817,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
         mapRequestCount[wtxNew.GetHash()] = 0;
 
         // Broadcast
-        if (!wtxNew.AcceptToMemoryPool(true))
+        if (!wtxNew.AcceptToMemoryPool())
         {
             // This must not fail. The transaction has already been signed and recorded.
             LogPrintf("CommitTransaction() : Error: Transaction not valid\n");
@@ -1895,8 +1895,8 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
 
     CTxDB txdb("r");
     CTxIndex txIdx;
-    if (txdb.ReadNewMultiCoinGenesisTx(newCoinType, txIdx))
-        return error("AcceptToMemoryPool : ReadNewMultiCoinGenesisTx found dumplicate new coin type.");
+    if (txdb.ReadNewCoinGenesisTx(newCoinType, txIdx))
+        return error("AcceptToMemoryPool : ReadNewCoinGenesisTx found dumplicate new coin type.");
 
     CScript scriptPubKey;
     scriptPubKey.SetDestination(address);

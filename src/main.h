@@ -145,16 +145,8 @@ uint256 WantedByOrphan(const COrphanBlock* pblockOrphan);
 const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfStake);
 void ThreadStakeMiner(CWallet *pwallet);
 
-
 /** (try to) add transaction to memory pool **/
-bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
-                        bool* pfMissingInputs);
-
-
-
-
-
-
+bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool* pfMissingInputs);
 
 /** Position on disk for a particular transaction. */
 class CDiskTxPos
@@ -273,6 +265,22 @@ public:
     inline string getSpendCoinType() const
     {
         return mCoinType.getSpendCoinType();
+    }
+
+    inline unsigned int getFeeOutIdx() const
+    {
+        return mCoinType.getFeeOutIdx(vout.size());
+    }
+
+    inline bool checkFee() const
+    {
+        int64_t actualFee = MultiCoins::getFeeInTx(*this);
+        if (!MultiCoins::isFeeValid(actualFee))
+            return DoS(100, error("checkFee() : invalid fee!"));
+
+        int64_t requiredFee = MultiCoins::calculateTxFee(*this);
+
+        return actualFee == requiredFee;
     }
 
     CTransaction()
@@ -550,7 +558,7 @@ public:
     int GetDepthInMainChain() const { CBlockIndex *pindexRet; return GetDepthInMainChain(pindexRet); }
     bool IsInMainChain() const { CBlockIndex *pindexRet; return GetDepthInMainChainINTERNAL(pindexRet) > 0; }
     int GetBlocksToMaturity() const;
-    bool AcceptToMemoryPool(bool fLimitFree=true);
+    bool AcceptToMemoryPool();
 };
 
 

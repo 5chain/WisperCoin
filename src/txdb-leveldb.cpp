@@ -283,17 +283,17 @@ bool CTxDB::WriteBestInvalidTrust(CBigNum bnBestInvalidTrust)
     return Write(string("bnBestInvalidTrust"), bnBestInvalidTrust);
 }
 
-bool CTxDB::WriteNewMultiCoinGenesisTx(const string& coinTypeStr, const CTxIndex& txIdx)
+bool CTxDB::WriteNewCoinGenesisTx(const string &coinTypeStr, const CTxIndex &txIdx)
 {
     return Write(make_pair(string("MultiCoins"), coinTypeStr), txIdx);
 }
 
-bool CTxDB::ReadNewMultiCoinGenesisTx(const string& coinTypeStr, CTxIndex& txIdx)
+bool CTxDB::ReadNewCoinGenesisTx(const string &coinTypeStr, CTxIndex &txIdx)
 {
     return Read(make_pair(string("MultiCoins"), coinTypeStr), txIdx);
 }
 
-bool CTxDB::EraseNewMultiCoinGenesisTx(const string& coinTypeStr)
+bool CTxDB::EraseNewCoinGenesisTx(const string &coinTypeStr)
 {
     return Erase(make_pair(string("MultiCoins"), coinTypeStr));
 }

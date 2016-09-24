@@ -197,9 +197,9 @@ public:
     bool WriteHashBestChain(uint256 hashBestChain);
     bool ReadBestInvalidTrust(CBigNum& bnBestInvalidTrust);
     bool WriteBestInvalidTrust(CBigNum bnBestInvalidTrust);
-    bool WriteNewMultiCoinGenesisTx(const std::string& coinTypeStr, const CTxIndex& txIdx);
-    bool ReadNewMultiCoinGenesisTx(const std::string& coinTypeStr, CTxIndex& txIdx);
-    bool EraseNewMultiCoinGenesisTx(const std::string& coinTypeStr);
+    bool WriteNewCoinGenesisTx(const std::string &coinTypeStr, const CTxIndex &txIdx);
+    bool ReadNewCoinGenesisTx(const std::string &coinTypeStr, CTxIndex &txIdx);
+    bool EraseNewCoinGenesisTx(const std::string &coinTypeStr);
     bool LoadBlockIndex();
 private:
     bool LoadBlockIndexGuts();

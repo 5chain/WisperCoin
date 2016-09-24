@@ -24,7 +24,7 @@ namespace MultiCoins
         return ((coinType.size() >= MIN_COIN_TYPE_LENGTH) && (coinType.size() <= MAX_COIN_TYPE_LENGTH));
     }
 
-    static bool isReceiptAddressValid(CTxDestination& destAddress)
+    static bool isSentToReceiptAddress(CTxDestination &destAddress)
     {
         return (destAddress == CBitcoinAddress(publicReceiptAddress).Get());
     }
@@ -108,13 +108,13 @@ namespace MultiCoins
 
         // NOTE: Must have one main coin type.
         // Conditions are as follows: (X is currently only main coin type)
-        // X|Y -> tx.vout[ X | X | Y ]  ...for create new coin
-        // Y|X -> tx.vout[ Y | Y | X ]  ...for new coin transaction
-        //  X  -> tx.vout[ X | X | X ]  ...currently only main coin type suit this type.
+        //  X  -> tx.vout[ X |   X   | X-fee ]  ...currently only for main coin
+        // X|Y -> tx.vout[ X | X-fee |   Y   ]  ...for create new coin
+        // Y|X -> tx.vout[ Y |   Y   | X-fee ]  ...for new coin transaction
         bool isFitCoinType(const string& specifiedType, unsigned int outVecIdx, unsigned int outVecSize) const
         {
-            if (outVecIdx >= outVecSize)
-                throw logic_error("isFitCoinType: param outVecIdx out of range.");
+            if ((outVecIdx >= outVecSize) || (outVecSize < 2))
+                throw logic_error("isFitCoinType: wrong out index or vout size.");
 
             // Currently only support main coin type exist alone.
             if (mSecondType.empty())
@@ -136,6 +136,32 @@ namespace MultiCoins
             return false;
         }
 
+        // NOTE as above.
+        unsigned int getFeeOutIdx(unsigned int outVecSize) const
+        {
+            if (outVecSize < 2)
+                throw logic_error("getFeeOutIdx: wrong vout size.");
+
+            if (mSecondType.empty())
+            {
+                return outVecSize - 1;
+            }
+            else
+            {
+                if (mainCoinTypeStr == mFirstType)
+                {
+                    return outVecSize - 2;
+                }
+                else if (mainCoinTypeStr == mSecondType)
+                {
+                    return outVecSize - 1;
+                }
+            }
+
+            // else throw...
+            throw logic_error("getFeeOutIdx(): error coin type!");
+        }
+
         bool isMainCoinType() const
         {
             return (mFirstType == MultiCoins::mainCoinTypeStr) && mSecondType.empty();
@@ -155,15 +181,17 @@ namespace MultiCoins
     static const int64_t createNewCoinFee = 10 * COIN;
     static const float feeRatio = 1.f / 10000.f;
     static const int64_t MIN_FEE = 0.1 * CENT;
-    static const int64_t MAX_FEE = std::numeric_limits<int64_t>::max();;
+    static const int64_t MAX_FEE = std::numeric_limits<int64_t>::max();
 
     // NOTE: the fee can be paied only by main coin type
-    static int64_t calculateTxFee(const string& coinTypeStr, int64_t amount);
+    static int64_t calculateTxFee(const CTransaction& tx);
+    static int64_t getFeeInTx(const CTransaction& tx);
 
     static bool isFeeValid(int64_t amount)
     {
         return (amount >= MIN_FEE) && (amount <= MAX_FEE);
     }
+
 };
 
 #endif //SRC_MULTICOINS_H
