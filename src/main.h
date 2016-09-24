@@ -220,7 +220,7 @@ class CTransaction
 {
 private:
     // Add for tx coin type
-    string mCoinTypeStr = MultiCoins::mainCoinTypeStr;
+    mutable string mCoinTypeStr = MultiCoins::mainCoinTypeStr;
 
     // Only in memory
     MultiCoins::CoinType mCoinType = MultiCoins::CoinType(MultiCoins::mainCoinTypeStr);
@@ -264,9 +264,9 @@ public:
         return mCoinType.isFitCoinType(specifiedType, outVecIdx, vout.size());
     }
 
-    inline bool isMainCoinType()
+    inline bool isMainCoinType() const
     {
-        return (mCoinType == MultiCoins::mainCoinTypeStr);
+        return (mCoinTypeStr == MultiCoins::mainCoinTypeStr);
     }
 
     CTransaction()

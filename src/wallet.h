@@ -198,9 +198,9 @@ public:
     void ResendWalletTransactions(bool fForce = false);
     int64_t GetBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
     int64_t GetUnconfirmedBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
-    int64_t GetImmatureBalance() const;
-    int64_t GetStake() const;
-    int64_t GetNewMint() const;
+    int64_t GetImmatureBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
+    int64_t GetStake(const string& coinType = MultiCoins::mainCoinTypeStr) const;
+    int64_t GetNewMint(const string& coinType = MultiCoins::mainCoinTypeStr) const;
     bool CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &wtxNew, CReserveKey &reservekey,
                                int64_t &nFeeRet);
     bool CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, CReserveKey &reservekey, int64_t &nFeeRet);

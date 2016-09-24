@@ -1334,12 +1334,15 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs, map<uint256, CTx
                     return DoS(1, error("ConnectInputs() : special marker is not spendable"));
             }
 
+            if (!txPrev.isFitCoinType(this->getCoinTypeStr(), prevout.n))
+                return DoS(100, error("ConnectInputs() : vin not fit coin type"));
+
             // Check for negative or overflow input values
             nValueIn += txPrev.vout[prevout.n].nValue;
             if (!MoneyRange(txPrev.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
                 return DoS(100, error("ConnectInputs() : txin values out of range"));
-
         }
+
         // The first loop above does all the inexpensive checks.
         // Only if ALL inputs pass do we perform expensive ECDSA signature checks.
         // Helps prevent CPU exhaustion attacks.

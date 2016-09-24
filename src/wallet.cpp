@@ -1068,7 +1068,7 @@ int64_t CWallet::GetUnconfirmedBalance(const string& coinType) const
     return nTotal;
 }
 
-int64_t CWallet::GetImmatureBalance() const
+int64_t CWallet::GetImmatureBalance(const string& coinType) const
 {
     int64_t nTotal = 0;
     {
@@ -1077,7 +1077,7 @@ int64_t CWallet::GetImmatureBalance() const
         {
             const CWalletTx& pcoin = (*it).second;
             if (pcoin.GetBlocksToMaturity() > 0 && pcoin.IsInMainChain())
-                nTotal += GetCredit(pcoin);
+                nTotal += GetCredit(pcoin, coinType);
         }
     }
     return nTotal;
@@ -1213,7 +1213,7 @@ static void ApproximateBestSubset(vector<pair<int64_t, pair<const CWalletTx*,uns
 }
 
 // ppcoin: total coins staked (non-spendable until maturity)
-int64_t CWallet::GetStake() const
+int64_t CWallet::GetStake(const string& coinType) const
 {
     int64_t nTotal = 0;
     LOCK2(cs_main, cs_wallet);
@@ -1221,12 +1221,12 @@ int64_t CWallet::GetStake() const
     {
         const CWalletTx* pcoin = &(*it).second;
         if (pcoin->IsCoinStake() && pcoin->GetBlocksToMaturity() > 0 && pcoin->GetDepthInMainChain() > 0)
-            nTotal += CWallet::GetCredit(*pcoin);
+            nTotal += CWallet::GetCredit(*pcoin, coinType);
     }
     return nTotal;
 }
 
-int64_t CWallet::GetNewMint() const
+int64_t CWallet::GetNewMint(const string& coinType) const
 {
     int64_t nTotal = 0;
     LOCK2(cs_main, cs_wallet);
@@ -1234,7 +1234,7 @@ int64_t CWallet::GetNewMint() const
     {
         const CWalletTx* pcoin = &(*it).second;
         if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0 && pcoin->GetDepthInMainChain() > 0)
-            nTotal += CWallet::GetCredit(*pcoin);
+            nTotal += CWallet::GetCredit(*pcoin, coinType);
     }
     return nTotal;
 }
@@ -1603,7 +1603,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     txNew.vout.push_back(CTxOut(0, scriptEmpty));
 
     // Choose coins to use
-    int64_t nBalance = GetBalance();
+    int64_t nBalance = GetBalance(txNew.getCoinTypeStr());
 
     if (nBalance <= nReserveBalance)
         return false;
@@ -1798,7 +1798,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
             // otherwise just for transaction history.
             AddToWallet(wtxNew);
 
-            // Mark old coins as spent
+            // Mark old coins as spent in !wallet
             set<CWalletTx*> setCoins;
             BOOST_FOREACH(const CTxIn& txin, wtxNew.vin)
             {
@@ -1851,7 +1851,7 @@ std::string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &
     if (!CreateTransaction(scriptPubKey, nValue, wtxNew, reservekey, nFeeRequired))
     {
         string strError;
-        if (nValue + nFeeRequired > GetBalance())
+        if (nValue + nFeeRequired > GetBalance(wtxNew.getCoinTypeStr()))
             strError = strprintf(_("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds!"), FormatMoney(nFeeRequired));
         else
             strError = _("Error: Transaction creation failed!");
@@ -1875,7 +1875,7 @@ std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64
     // Check amount
     if (nValue <= 0)
         return _("Invalid amount");
-    if (nValue + nTransactionFee > GetBalance())
+    if (nValue + nTransactionFee > GetBalance(wtxNew.getCoinTypeStr()))
         return _("Insufficient funds");
 
     // Parse Bitcoin address
