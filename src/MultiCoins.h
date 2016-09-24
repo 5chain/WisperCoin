@@ -19,6 +19,15 @@ namespace MultiCoins
 
     static const string publicReceiptAddress("mwgB4hAhMPzE4i2omvC5kCb6HGoeFT5GCu");
 
+    enum TxOutType
+    {
+        TXOUT_NORMAL = 0,
+        TXOUT_CHANGE = 1,
+        TXOUT_FEE = 2,
+        TXOUT_NEW_COIN = 3,
+        TXOUT_MAX = 4
+    };
+
     static bool isCoinTypeValid(const string& coinType)
     {
         return ((coinType.size() >= MIN_COIN_TYPE_LENGTH) && (coinType.size() <= MAX_COIN_TYPE_LENGTH));
@@ -94,7 +103,7 @@ namespace MultiCoins
             return false;
         }
 
-        bool getNewCoinType(string& newCoinType) const
+        bool tryGetNewCoinType(string& newCoinType) const
         {
             if (this->isCreateNewCoin())
             {
@@ -108,13 +117,13 @@ namespace MultiCoins
 
         // NOTE: Must have one main coin type.
         // Conditions are as follows: (X is currently only main coin type)
-        //  X  -> tx.vout[ X |   X   | X-fee ]  ...currently only for main coin
-        // X|Y -> tx.vout[ X | X-fee |   Y   ]  ...for create new coin
-        // Y|X -> tx.vout[ Y |   Y   | X-fee ]  ...for new coin transaction
-        bool isFitCoinType(const string& specifiedType, unsigned int outVecIdx, unsigned int outVecSize) const
+        //  X  -> tx.vout[ X | X-chg | X-fee ]  ...currently only for main coin
+        // X|Y -> tx.vout[ X | X-fee |   Y   ]  ...for create new coin (also have change)
+        // Y|X -> tx.vout[ Y | Y-chg | X-fee ]  ...for new coin transaction
+        bool isFitCoinType(const string &specifiedType, TxOutType txOutType) const
         {
-            if ((outVecIdx >= outVecSize) || (outVecSize < 2))
-                throw logic_error("isFitCoinType: wrong out index or vout size.");
+            if (txOutType >= TXOUT_MAX)
+                throw logic_error("isFitCoinType: wrong txout type.");
 
             // Currently only support main coin type exist alone.
             if (mSecondType.empty())
@@ -123,46 +132,34 @@ namespace MultiCoins
             }
             else
             {
-                if (specifiedType == mFirstType)
+                if (mainCoinTypeStr == mFirstType)
                 {
-                    return (outVecIdx <= outVecSize - 2);
+                    if (specifiedType == mFirstType)
+                    {
+                        return (txOutType != TXOUT_NEW_COIN);
+                    }
+                    else if (specifiedType == mSecondType)
+                    {
+                        return (txOutType == TXOUT_NEW_COIN);
+                    }
                 }
-                else if (specifiedType == mSecondType)
+                else if (mainCoinTypeStr == mSecondType)
                 {
-                    return (outVecIdx == outVecSize - 1);
+                    if (specifiedType == mFirstType)
+                    {
+                        return (txOutType != TXOUT_FEE);
+                    }
+                    else if (specifiedType == mSecondType)
+                    {
+                        return (txOutType == TXOUT_FEE);
+                    }
                 }
             }
 
             return false;
         }
 
-        // NOTE as above.
-        unsigned int getFeeOutIdx(unsigned int outVecSize) const
-        {
-            if (outVecSize < 2)
-                throw logic_error("getFeeOutIdx: wrong vout size.");
-
-            if (mSecondType.empty())
-            {
-                return outVecSize - 1;
-            }
-            else
-            {
-                if (mainCoinTypeStr == mFirstType)
-                {
-                    return outVecSize - 2;
-                }
-                else if (mainCoinTypeStr == mSecondType)
-                {
-                    return outVecSize - 1;
-                }
-            }
-
-            // else throw...
-            throw logic_error("getFeeOutIdx(): error coin type!");
-        }
-
-        bool isMainCoinType() const
+        bool isMainCoinTx() const
         {
             return (mFirstType == MultiCoins::mainCoinTypeStr) && mSecondType.empty();
         }
@@ -191,7 +188,6 @@ namespace MultiCoins
     {
         return (amount >= MIN_FEE) && (amount <= MAX_FEE);
     }
-
 };
 
 #endif //SRC_MULTICOINS_H

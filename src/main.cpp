@@ -546,8 +546,8 @@ bool CTransaction::CheckTransaction() const
         if (txout.nValue > MAX_MONEY)
             return DoS(100, error("CTransaction::CheckTransaction() : txout.nValue too high"));
 
-        if (isCreateNewCoin() && (i == vout.size() - 1))
-            nValueOut = txout.nValue;
+        if (this->isCreateNewCoin() && (this->vout[i].getType() == MultiCoins::TXOUT_NEW_COIN))
+            continue;
         else
             nValueOut += txout.nValue;
 
@@ -576,30 +576,68 @@ bool CTransaction::CheckTransaction() const
                 return DoS(10, error("CTransaction::CheckTransaction() : prevout is null"));
     }
 
-    if (!this->isCreateNewCoin())
+    if (!IsCoinBase() && !IsCoinStake())
     {
-        CTxDB txDB("r");
+        // check counts
+        unsigned int normalCount, newCoinCount, feeCount, changeCount;
+        normalCount = newCoinCount = feeCount = changeCount = 0;
 
-        BOOST_FOREACH(const CTxIn& txin, vin)
+        BOOST_FOREACH(const CTxOut &txOut, this->vout)
         {
-            CTransaction txPrev;
-            CTxIndex txindex;
-            // If not find txPrev,it should be an orphan tx.
-            if (txPrev.ReadFromDisk(txDB, txin.prevout, txindex) || mempool.lookup(txin.prevout.hash, txPrev))
+            switch (txOut.getType())
             {
-                if (!txPrev.isFitCoinType(this->getCoinTypeStr(), txin.prevout.n))
-                    return DoS(100, error("CTransaction::CheckTransaction() : tx coin type isnot the same as prevout!"));
+                case MultiCoins::TXOUT_NORMAL:
+                    ++normalCount;
+                    break;
+
+                case MultiCoins::TXOUT_CHANGE:
+                    ++changeCount;
+                    break;
+
+                case MultiCoins::TXOUT_FEE:
+                    ++feeCount;
+                    break;
+
+                case MultiCoins::TXOUT_NEW_COIN:
+                    ++newCoinCount;
+                    break;
+
+                default:
+                    return DoS(100, error("CTransaction::CheckTransaction() : wrong txout type!"));
             }
         }
-    }
-    else
-    {
-        if (vout.size() < 2)
-            return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong vout!"));
 
-        CTxDestination address;
-        if (!ExtractDestination(vout.front().scriptPubKey, address) || !MultiCoins::isSentToReceiptAddress(address))
-            return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
+        if ((normalCount < 1) || (changeCount > 1) || (feeCount != 1))
+            return DoS(100, error("CTransaction::CheckTransaction() : wrong txout count"));
+
+        if (!this->checkFee())
+            return DoS(100, error("CTransaction::CheckTransaction() : wrong fee"));
+
+        if (!this->isCreateNewCoin())
+        {
+            CTxDB txDB("r");
+
+            BOOST_FOREACH(const CTxIn& txin, vin)
+            {
+                CTransaction txPrev;
+                CTxIndex txindex;
+                // If not find txPrev,it should be an orphan tx.
+                if (txPrev.ReadFromDisk(txDB, txin.prevout, txindex) || mempool.lookup(txin.prevout.hash, txPrev))
+                {
+                    if (!txPrev.isFitCoinType(this->getCoinTypeStr(), txin.prevout.n))
+                        return DoS(100, error("CTransaction::CheckTransaction() : tx coin type isnot the same as prevout!"));
+                }
+            }
+        }
+        else
+        {
+            if ((newCoinCount < 1) || (vout.size() < 2))
+                return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong vout!"));
+
+            CTxDestination address;
+            if (!ExtractDestination(vout.front().scriptPubKey, address) || !MultiCoins::isSentToReceiptAddress(address))
+                return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
+        }
     }
 
     return true;
@@ -680,7 +718,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool* pfMissingInput
         if (tx.isCreateNewCoin())
         {
             string newCoinType;
-            if (tx.getNewCoinType(newCoinType))
+            if (tx.tryGetNewCoinType(newCoinType))
             {
                 CTxIndex txIdx;
                 if (txdb.ReadNewCoinGenesisTx(newCoinType, txIdx))
@@ -691,7 +729,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool* pfMissingInput
                     if (txPair.second.isCreateNewCoin())
                     {
                         string coinType;
-                        if (txPair.second.getNewCoinType(coinType) && (coinType == newCoinType))
+                        if (txPair.second.tryGetNewCoinType(coinType) && (coinType == newCoinType))
                             return error("AcceptToMemoryPool : ReadNewCoinGenesisTx found dumplicate new coin type in mempool.");
                     }
                 }
@@ -725,12 +763,6 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool* pfMissingInput
             return tx.DoS(0,
                           error("AcceptToMemoryPool : too many sigops %s, %d > %d",
                                 hash.ToString(), nSigOps, MAX_TX_SIGOPS));
-
-        int64_t fee = MultiCoins::getFeeInTx(tx);
-        if (!MultiCoins::isFeeValid(fee))
-            return error("AcceptToMemoryPool : not enough fees %s, %d < %d",
-                         hash.ToString(),
-                         fee, MultiCoins::MIN_FEE);
 
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
@@ -1404,7 +1436,7 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         if (tx.isCreateNewCoin())
         {
             string newCoinType;
-            if (tx.getNewCoinType(newCoinType))
+            if (tx.tryGetNewCoinType(newCoinType))
                 txdb.EraseNewCoinGenesisTx(newCoinType);
         }
     }
@@ -1528,7 +1560,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
         if (tx.isCreateNewCoin())
         {
             string newCoinType;
-            if (tx.getNewCoinType(newCoinType))
+            if (tx.tryGetNewCoinType(newCoinType))
                 txdb.WriteNewCoinGenesisTx(newCoinType, mapQueuedChanges[hashTx]);
         }
     }
@@ -1986,7 +2018,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
             return DoS(100, error("CheckBlock() : more than one coinbase"));
 
     // pow must reward the main coin type
-    if (!vtx[0].isMainCoinType())
+    if (!vtx[0].isMainCoinTx())
         return DoS(100, error("CheckBlock() : pow must reward the main coin type!"));
 
     if (IsProofOfStake())
@@ -2003,7 +2035,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                 return DoS(100, error("CheckBlock() : more than one coinstake"));
 
         // pos must reward the main coin type
-        if (!vtx[1].isMainCoinType())
+        if (!vtx[1].isMainCoinTx())
             return DoS(100, error("CheckBlock() : pos must reward the main coin type!"));
     }
 

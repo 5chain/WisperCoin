@@ -246,19 +246,22 @@ public:
         return mCoinType.isCreateNewCoin();
     }
 
-    inline bool getNewCoinType(string& newCoinType) const
+    inline bool tryGetNewCoinType(string &newCoinType) const
     {
-        return mCoinType.getNewCoinType(newCoinType);
+        return mCoinType.tryGetNewCoinType(newCoinType);
     }
 
-    inline bool isFitCoinType(const string& specifiedType, unsigned int outVecIdx) const
+    inline bool isFitCoinType(const string &specifiedType, unsigned int outVecIdx) const
     {
-        return mCoinType.isFitCoinType(specifiedType, outVecIdx, vout.size());
+        if (outVecIdx >= this->vout.size())
+            throw logic_error("isFitCoinType() : out index out of range.");
+
+        return mCoinType.isFitCoinType(specifiedType, this->vout[outVecIdx].getType());
     }
 
-    inline bool isMainCoinType() const
+    inline bool isMainCoinTx() const
     {
-        return mCoinType.isMainCoinType();
+        return mCoinType.isMainCoinTx();
     }
 
     // NOTE: for create new, this returns the main coin type
@@ -267,20 +270,16 @@ public:
         return mCoinType.getSpendCoinType();
     }
 
-    inline unsigned int getFeeOutIdx() const
-    {
-        return mCoinType.getFeeOutIdx(vout.size());
-    }
-
     inline bool checkFee() const
     {
+        if (this->IsCoinBase() || this->IsCoinStake())
+            return true;
+
         int64_t actualFee = MultiCoins::getFeeInTx(*this);
         if (!MultiCoins::isFeeValid(actualFee))
             return DoS(100, error("checkFee() : invalid fee!"));
 
-        int64_t requiredFee = MultiCoins::calculateTxFee(*this);
-
-        return actualFee == requiredFee;
+        return (MultiCoins::calculateTxFee(*this) == actualFee);
     }
 
     CTransaction()
@@ -343,8 +342,8 @@ public:
         int64_t nValueOut = 0;
         BOOST_FOREACH(const CTxOut& txout, vout)
         {
-            if (isCreateNewCoin() && (txout == vout.back()))
-                break;
+            if (isCreateNewCoin() && (txout.getType() == MultiCoins::TXOUT_NEW_COIN))
+                continue;
 
             nValueOut += txout.nValue;
             if (!MoneyRange(txout.nValue) || !MoneyRange(nValueOut))

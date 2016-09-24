@@ -231,6 +231,8 @@ Value listunspent(const Array& params, bool fHelp)
 
 Value createrawtransaction(const Array& params, bool fHelp)
 {
+    throw runtime_error("Not support now...");
+
     if (fHelp || params.size() != 2)
         throw runtime_error(
             "createrawtransaction [{\"txid\":txid,\"vout\":n},...] {address:amount,...}\n"

@@ -1485,7 +1485,7 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > 
 
                     // Insert change txn at random position:
                     vector<CTxOut>::iterator position = wtxNew.vout.begin()+GetRandInt(wtxNew.vout.size()+1);
-                    wtxNew.vout.insert(position, CTxOut(nChange, scriptChange));
+                    wtxNew.vout.insert(position, CTxOut(nChange, scriptChange, MultiCoins::TXOUT_CHANGE));
                 }
                 else
                     reservekey.ReturnKey();
@@ -1885,7 +1885,7 @@ std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64
     return SendMoney(scriptPubKey, nValue, wtxNew, fAskFee);
 }
 
-// NOTE: Must be three outs, 1 is main coin to public receipt, 2 is main coin fee to public receipt, 3 is new coin to owner
+// NOTE: Must be at least three outs, 1 is main coin to public receipt, 2 is main coin fee to public receipt, 3 is new coin to owner
 bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
                      int64_t newCoinAmount, const CTxDestination& address,
                      const CTxDestination& buyerAddress, CWalletTx& newTx)
@@ -1983,13 +1983,13 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
 
                         // Insert change txn at random position:
                         vector<CTxOut>::iterator position = newTx.vout.begin()+GetRandInt(newTx.vout.size()+1);
-                        newTx.vout.insert(position, CTxOut(nChange, scriptChange));
+                        newTx.vout.insert(position, CTxOut(nChange, scriptChange, MultiCoins::TXOUT_CHANGE));
                     }
                     else
                         reservekey.ReturnKey();
 
                     // Add new coin vout
-                    newTx.vout.push_back(CTxOut(newCoinAmount, buyerScriptPubKey));
+                    newTx.vout.push_back(CTxOut(newCoinAmount, buyerScriptPubKey, MultiCoins::TXOUT_NEW_COIN));
 
                     // Fill vin
                     //

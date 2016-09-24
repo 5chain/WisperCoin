@@ -9,6 +9,7 @@
 #include "serialize.h"
 #include "util.h"
 #include "script.h"
+#include "MultiCoins.h"
 
 #include <stdio.h>
 
@@ -137,6 +138,8 @@ public:
 /** An output of a transaction.  It contains the public key that the next input
  * must be able to sign with to claim it.
  */
+// MultiCoin extend: add an mType identifier to specify the new coin, the fee, the change, etc...
+// Currently not modify the coinbase and coinstake.
 class CTxOut
 {
 public:
@@ -148,16 +151,18 @@ public:
         SetNull();
     }
 
-    CTxOut(int64_t nValueIn, CScript scriptPubKeyIn)
+    CTxOut(int64_t nValueIn, CScript scriptPubKeyIn, MultiCoins::TxOutType type = MultiCoins::TXOUT_NORMAL)
     {
         nValue = nValueIn;
         scriptPubKey = scriptPubKeyIn;
+        mType = type;
     }
 
     IMPLEMENT_SERIALIZE
     (
         READWRITE(nValue);
         READWRITE(scriptPubKey);
+        READWRITE(mType);
     )
 
     void SetNull()
@@ -209,6 +214,20 @@ public:
         if (IsEmpty()) return "CTxOut(empty)";
         return strprintf("CTxOut(nValue=%s, scriptPubKey=%s)", FormatMoney(nValue), scriptPubKey.ToString());
     }
+
+    void setType(MultiCoins::TxOutType type)
+    {
+        mType = type;
+    }
+
+    MultiCoins::TxOutType getType() const
+    {
+        return (MultiCoins::TxOutType)mType;
+    }
+
+private:
+    // Using uint as READWRITE required.
+    unsigned int mType = MultiCoins::TXOUT_NORMAL;
 };
 
 #endif
