@@ -107,9 +107,9 @@ namespace MultiCoins
         }
 
         // NOTE: Must have one main coin type.
-        // Conditions as follows:
-        // X|Y -> tx.vout[ X | X | Y ]
-        // Y|X -> tx.vout[ Y | Y | X ]
+        // Conditions are as follows: (X is currently only main coin type)
+        // X|Y -> tx.vout[ X | X | Y ]  ...for create new coin
+        // Y|X -> tx.vout[ Y | Y | X ]  ...for new coin transaction
         //  X  -> tx.vout[ X | X | X ]  ...currently only main coin type suit this type.
         bool isFitCoinType(const string& specifiedType, unsigned int outVecIdx, unsigned int outVecSize) const
         {

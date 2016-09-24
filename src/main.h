@@ -220,7 +220,7 @@ class CTransaction
 {
 private:
     // Add for tx coin type
-    mutable string mCoinTypeStr = MultiCoins::mainCoinTypeStr;
+    string mCoinTypeStr = MultiCoins::mainCoinTypeStr;
 
     // Only in memory
     MultiCoins::CoinType mCoinType = MultiCoins::CoinType(MultiCoins::mainCoinTypeStr);
@@ -244,7 +244,7 @@ public:
         mCoinType = MultiCoins::CoinType(mCoinTypeStr);
     }
 
-    inline string& getCoinTypeStr() const
+    inline string getCoinTypeStr() const
     {
         return mCoinTypeStr;
     }
