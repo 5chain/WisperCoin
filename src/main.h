@@ -270,9 +270,9 @@ public:
     }
 
     // NOTE: for create new, this returns the main coin type
-    inline string getCoinType() const
+    inline string getSpendCoinType() const
     {
-        return mCoinType.getCoinType();
+        return mCoinType.getSpendCoinType();
     }
 
     CTransaction()

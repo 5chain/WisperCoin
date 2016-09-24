@@ -330,6 +330,8 @@ set(SOURCE_FILES
     wallet.cpp
     wallet.h
     walletdb.cpp
-    walletdb.h MultiCoins.h)
+    walletdb.h
+    MultiCoins.h
+    MultiCoins.cpp)
 
 add_executable(src ${SOURCE_FILES})

@@ -230,7 +230,7 @@ public:
     std::map<CTxDestination, int64_t> GetAddressBalances();
 
     bool IsMine(const CTxIn& txin) const;
-    int64_t GetDebit(const CTxIn& txin) const;
+    int64_t GetDebit(const CTxIn& txin, const string& coinType) const;
     bool IsMine(const CTxOut& txout) const
     {
         return ::IsMine(*this, txout.scriptPubKey);
@@ -264,12 +264,12 @@ public:
     {
         return (GetDebit(tx) > 0);
     }
-    int64_t GetDebit(const CTransaction& tx) const
+    int64_t GetDebit(const CTransaction& tx, const string& coinType = MultiCoins::mainCoinTypeStr) const
     {
         int64_t nDebit = 0;
-        BOOST_FOREACH(const CTxIn& txin, tx.vin) // 不对，这儿没法用isFitCoinType这么搞。。。
+        BOOST_FOREACH(const CTxIn& txin, tx.vin)
         {
-            nDebit += GetDebit(txin);
+            nDebit += GetDebit(txin, coinType);
             if (!MoneyRange(nDebit))
                 throw std::runtime_error("CWallet::GetDebit() : value out of range");
         }
@@ -603,18 +603,18 @@ public:
         return (!!vfSpent[nOut]);
     }
 
-    int64_t GetDebit() const
+    int64_t GetDebit(const string& coinType = MultiCoins::mainCoinTypeStr) const
     {
         if (vin.empty())
             return 0;
         if (fDebitCached)
             return nDebitCached;
-        nDebitCached = pwallet->GetDebit(*this);
+        nDebitCached = pwallet->GetDebit(*this, coinType);
         fDebitCached = true;
         return nDebitCached;
     }
 
-    int64_t GetCredit(bool fUseCache=true, const string& coinType = MultiCoins::mainCoinTypeStr) const
+    int64_t GetCredit(const string& coinType = MultiCoins::mainCoinTypeStr, bool fUseCache=true) const
     {
         // Must wait until coinbase is safely deep enough in the chain before valuing it
         if (GetBlocksToMaturity() > 0)

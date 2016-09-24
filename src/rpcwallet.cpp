@@ -1221,8 +1221,8 @@ Value gettransaction(const Array& params, bool fHelp)
 
         TxToJSON(wtx, 0, entry);
 
-        int64_t nCredit = wtx.GetCredit();
-        int64_t nDebit = wtx.GetDebit();
+        int64_t nCredit = wtx.GetCredit(wtx.getCoinTypeStr());
+        int64_t nDebit = wtx.GetDebit(wtx.getCoinTypeStr());
         int64_t nNet = nCredit - nDebit;
         int64_t nFee = (wtx.IsFromMe() ? wtx.GetValueOut() - nDebit : 0);
 

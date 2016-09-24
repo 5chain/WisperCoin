@@ -5,10 +5,8 @@
 #ifndef SRC_MULTICOINS_H
 #define SRC_MULTICOINS_H
 
-#include "main.h"
 #include "base58.h"
 #include "chainparams.h"
-#include "txdb-leveldb.h"
 
 #include <boost/algorithm/string.hpp>
 
@@ -144,7 +142,7 @@ namespace MultiCoins
         }
 
         // NOTE: for create new, this returns the main coin type
-        string getCoinType() const
+        string getSpendCoinType() const
         {
             return mFirstType;
         }
@@ -155,47 +153,16 @@ namespace MultiCoins
     };
 
     static const int64_t createNewCoinFee = 10 * COIN;
-    static const float feeRatio = 1f / 10000f;
+    static const float feeRatio = 1.f / 10000.f;
+    static const int64_t MIN_FEE = 0.1 * CENT;
+    static const int64_t MAX_FEE = std::numeric_limits<int64_t>::max();;
 
     // NOTE: the fee can be paied only by main coin type
-    // TODO: need add min/max
-    static int64_t calculateTxFee(const string& coinTypeStr, int64_t amount)
+    static int64_t calculateTxFee(const string& coinTypeStr, int64_t amount);
+
+    static bool isFeeValid(int64_t amount)
     {
-        CoinType coinType(coinTypeStr);
-        if (coinType.isCreateNewCoin())
-        {
-            return createNewCoinFee;
-        }
-        else if (coinType.isMainCoinType())
-        {
-            return amount * feeRatio;
-        }
-        else // This is for new coin transactions.
-        {
-            int64_t newCoinFee = amount * feeRatio;
-
-            // Then convert to main coin
-            CTxDB txDB("r");
-
-            CTxIndex txIndex;
-            if (txDB.ReadNewMultiCoinGenesisTx(coinType.getCoinType(), txIndex))
-            {
-                CTransaction tx;
-                if (tx.ReadFromDisk(txIndex.pos))
-                {
-                    // See createNewCoinTx() description.
-                    if (tx.vout.size() == 3)
-                    {
-                        float ratioNew2Main = (float)((double)tx.vout[0].nValue / tx.vout[2].nValue);
-
-                        return newCoinFee * ratioNew2Main;
-                    }
-                }
-            }
-        }
-
-        // else throw...
-        throw logic_error("calculateTxFee(): error calcaulate!");
+        return (amount >= MIN_FEE) && (amount <= MAX_FEE);
     }
 };
 

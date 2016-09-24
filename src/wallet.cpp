@@ -622,8 +622,7 @@ bool CWallet::IsMine(const CTxIn &txin) const
     return false;
 }
 
-// NOTE: Before calling this, you must check the tx coin type!
-int64_t CWallet::GetDebit(const CTxIn &txin) const
+int64_t CWallet::GetDebit(const CTxIn &txin, const string& coinType) const
 {
     LOCK(cs_wallet);
     map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(txin.prevout.hash);
@@ -631,7 +630,8 @@ int64_t CWallet::GetDebit(const CTxIn &txin) const
     {
         const CWalletTx &prev = (*mi).second;
         if (txin.prevout.n < prev.vout.size())
-            if (IsMine(prev.vout[txin.prevout.n]))
+            if (IsMine(prev.vout[txin.prevout.n])
+                && prev.isFitCoinType(coinType, txin.prevout.n))
                 return prev.vout[txin.prevout.n].nValue;
     }
 
