@@ -637,36 +637,17 @@ bool CTransaction::CheckTransaction() const
             if ((newCoinCount < 1) || (vout.size() < 3))
                 return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong vout!"));
 
-            CTxDestination address;
-            if (!ExtractDestination(vout.front().scriptPubKey, address) || !MultiCoins::isSentToReceiptAddress(address))
-                return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
+            BOOST_FOREACH(const CTxOut &txOut, this->vout)
+            {
+                if ((txOut.getType() == MultiCoins::TXOUT_NEW_COIN)
+                    && !MultiCoins::isSentToPublicReceipt(txOut.scriptPubKey))
+                    return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
+            }
         }
     }
 
     return true;
 }
-
-int64_t GetMinFee(const CTransaction& tx, unsigned int nBlockSize, enum GetMinFee_mode mode, unsigned int nBytes)
-{
-    // Base fee is either MIN_TX_FEE or MIN_RELAY_TX_FEE
-    int64_t nBaseFee = (mode == GMF_RELAY) ? MIN_RELAY_TX_FEE : MIN_TX_FEE;
-
-    unsigned int nNewBlockSize = nBlockSize + nBytes;
-    int64_t nMinFee = (1 + (int64_t)nBytes / 1000) * nBaseFee;
-
-    // Raise the price as the block approaches full
-    if (nBlockSize != 1 && nNewBlockSize >= MAX_BLOCK_SIZE_GEN/2)
-    {
-        if (nNewBlockSize >= MAX_BLOCK_SIZE_GEN)
-            return MAX_MONEY;
-        nMinFee *= MAX_BLOCK_SIZE_GEN / (MAX_BLOCK_SIZE_GEN - nNewBlockSize);
-    }
-
-    if (!MoneyRange(nMinFee))
-        nMinFee = MAX_MONEY;
-    return nMinFee;
-}
-
 
 // 他这的逻辑确实可能出现同一个pool里存在spent关联的两个交易同时存在的情况，因为非coinbase和coinstake的tx打进block允许FromMe的tx不经确认
 bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool* pfMissingInputs)

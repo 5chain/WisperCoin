@@ -22,7 +22,6 @@
 #include "MultiCoins.h"
 
 // Settings
-extern int64_t nTransactionFee;
 extern int64_t nReserveBalance;
 extern int64_t nMinimumInputValue;
 extern bool fWalletUnlockStakingOnly;

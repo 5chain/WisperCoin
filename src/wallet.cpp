@@ -20,7 +20,6 @@
 using namespace std;
 
 // Settings
-int64_t nTransactionFee = MultiCoins::MIN_FEE;
 int64_t nReserveBalance = 0;
 int64_t nMinimumInputValue = 0;
 
@@ -1922,7 +1921,7 @@ std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64
     // Check amount
     if (nValue <= 0)
         return _("Invalid amount");
-    if (nValue + nTransactionFee > GetBalance(wtxNew.getCoinTypeStr()))
+    if (nValue + MultiCoins::calculateTxFee(wtxNew.getCoinTypeStr(), nValue) > GetBalance(wtxNew.getCoinTypeStr()))
         return _("Insufficient funds");
 
     // Parse Bitcoin address

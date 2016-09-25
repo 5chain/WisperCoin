@@ -35,9 +35,13 @@ namespace MultiCoins
         return ((coinType.size() >= MIN_COIN_TYPE_LENGTH) && (coinType.size() <= MAX_COIN_TYPE_LENGTH));
     }
 
-    static bool isSentToReceiptAddress(CTxDestination &destAddress)
+    static bool isSentToPublicReceipt(CScript &destScript)
     {
-        return (destAddress == CBitcoinAddress(publicReceiptAddress).Get());
+        CTxDestination address;
+        if (!ExtractDestination(destScript, address))
+            return false;
+
+        return (address == CBitcoinAddress(publicReceiptAddress).Get());
     }
 
     class MultiCoinType //: public CBase58Data
@@ -65,6 +69,7 @@ namespace MultiCoins
     };
 
     static const string mainCoinTypeStr = MultiCoinType("wsc").ToString();
+    static const string allCoinTypeStr = MultiCoinType("*").ToString();
 
     class CoinType
     {

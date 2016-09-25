@@ -44,10 +44,6 @@ static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
 static const unsigned int DEFAULT_MAX_ORPHAN_BLOCKS = 40;
 /** The maximum number of entries in an 'inv' protocol message */
 static const unsigned int MAX_INV_SZ = 50000;
-/** Fees smaller than this (in satoshi) are considered zero fee (for transaction creation) */
-static const int64_t MIN_TX_FEE = 10000;
-/** Fees smaller than this (in satoshi) are considered zero fee (for relaying) */
-static const int64_t MIN_RELAY_TX_FEE = MIN_TX_FEE;
 /** No amount larger than this (in satoshi) is valid */
 static const int64_t MAX_MONEY = std::numeric_limits<int64_t>::max();
 inline bool MoneyRange(int64_t nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
@@ -194,16 +190,7 @@ public:
     }
 };
 
-enum GetMinFee_mode
-{
-    GMF_BLOCK,
-    GMF_RELAY,
-    GMF_SEND,
-};
-
 typedef std::map<uint256, std::pair<CTxIndex, CTransaction> > MapPrevTx;
-
-int64_t GetMinFee(const CTransaction& tx, unsigned int nBlockSize = 1, enum GetMinFee_mode mode = GMF_BLOCK, unsigned int nBytes = 0);
 
 /** The basic transaction that is broadcasted on the network and contained in
  * blocks.  A transaction can contain multiple inputs and outputs.
@@ -334,6 +321,8 @@ public:
         return (vin.size() > 0 && (!vin[0].prevout.IsNull()) && vout.size() >= 2 && vout[0].IsEmpty());
     }
 
+    // NOTE: This func doesnot distinguish multi coin types, only sum up all the vout amount.
+    // Maybe used for compare with all vin amount, or coinbase and coinstake reward.
     int64_t GetValueOut() const
     {
         int64_t nValueOut = 0;
@@ -343,6 +332,7 @@ public:
                 continue;
 
             nValueOut += txout.nValue;
+
             if (!MoneyRange(txout.nValue) || !MoneyRange(nValueOut))
                 throw std::runtime_error("CTransaction::GetValueOut() : value out of range");
         }

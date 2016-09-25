@@ -96,8 +96,7 @@ namespace MultiCoins
         {
             if (txOut.getType() == TXOUT_FEE)
             {
-                CTxDestination address;
-                if (!ExtractDestination(txOut.scriptPubKey, address) || !isSentToReceiptAddress(address))
+                if (!isSentToPublicReceipt(txOut.scriptPubKey))
                     throw logic_error("getFeeInTx(): error receipt address check!");
 
                 fee = txOut.nValue;
