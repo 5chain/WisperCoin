@@ -11,7 +11,7 @@
 
 namespace MultiCoins
 {
-    static int64_t calculateTxFee(const CTransaction &tx)
+    int64_t calculateTxFee(const CTransaction &tx)
     {
         if (tx.IsCoinBase() || tx.IsCoinStake())
             return 0;
@@ -41,7 +41,7 @@ namespace MultiCoins
         return calculateTxFee(tx.getCoinTypeStr(), txValue);
     }
 
-    static int64_t calculateTxFee(const string &coinTypeStr, int64_t txValue)
+    int64_t calculateTxFee(const string &coinTypeStr, int64_t txValue)
     {
         int64_t feeVal = 0;
         CoinType coinType(coinTypeStr);
@@ -86,7 +86,7 @@ namespace MultiCoins
         return feeVal;
     }
 
-    static int64_t getFeeInTx(const CTransaction &tx)
+    int64_t getFeeInTx(const CTransaction &tx)
     {
         if (tx.IsCoinBase() || tx.IsCoinStake())
             return 0;

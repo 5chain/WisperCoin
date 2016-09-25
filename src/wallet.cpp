@@ -20,6 +20,7 @@
 using namespace std;
 
 // Settings
+int64_t nTransactionFee = MultiCoins::MIN_FEE;
 int64_t nReserveBalance = 0;
 int64_t nMinimumInputValue = 0;
 

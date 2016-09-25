@@ -188,9 +188,9 @@ namespace MultiCoins
     static const int64_t MAX_FEE = std::numeric_limits<int64_t>::max();
 
     // NOTE: the fee can be paied only by main coin type
-    static int64_t calculateTxFee(const CTransaction& tx);
-    static int64_t calculateTxFee(const string &coinTypeStr, int64_t txValue);
-    static int64_t getFeeInTx(const CTransaction& tx);
+    extern int64_t calculateTxFee(const CTransaction& tx);
+    extern int64_t calculateTxFee(const string &coinTypeStr, int64_t txValue);
+    extern int64_t getFeeInTx(const CTransaction& tx);
 
     static bool isFeeValid(int64_t amount)
     {
