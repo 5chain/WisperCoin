@@ -16,39 +16,53 @@ namespace MultiCoins
         if (tx.IsCoinBase() || tx.IsCoinStake())
             return 0;
 
-        int64_t feeVal = 0;
+        int64_t txValue = 0;
 
-        if (tx.isCreateNewCoin())
+        if (!tx.isCreateNewCoin())
+        {
+            if (tx.isMainCoinTx())
+            {
+                BOOST_FOREACH(const CTxOut &txOut, tx.vout)
+                {
+                    if (txOut.getType() == TXOUT_NORMAL)
+                        txValue += txOut.nValue;
+                }
+            }
+            else // This is for new coin transactions.
+            {
+                BOOST_FOREACH(const CTxOut &txOut, tx.vout)
+                {
+                    if (txOut.getType() == TXOUT_NORMAL)
+                        txValue += txOut.nValue;
+                }
+            }
+        }
+
+        return calculateTxFee(tx.getCoinTypeStr(), txValue);
+    }
+
+    static int64_t calculateTxFee(const string &coinTypeStr, int64_t txValue)
+    {
+        int64_t feeVal = 0;
+        CoinType coinType(coinTypeStr);
+
+        if (coinType.isCreateNewCoin())
         {
             feeVal = createNewCoinFee;
         }
-        else if (tx.isMainCoinTx())
+        else if (coinType.isMainCoinTx())
         {
-            int64_t amount = 0;
-            BOOST_FOREACH(const CTxOut &txOut, tx.vout)
-            {
-                if (txOut.getType() == TXOUT_NORMAL)
-                    amount += txOut.nValue;
-            }
-
-            feeVal = amount * feeRatio;
+            feeVal = txValue * feeRatio;
         }
         else // This is for new coin transactions.
         {
-            int64_t amount = 0;
-            BOOST_FOREACH(const CTxOut &txOut, tx.vout)
-            {
-                if (txOut.getType() == TXOUT_NORMAL)
-                    amount += txOut.nValue;
-            }
-
-            int64_t newCoinFee = amount * feeRatio;
+            int64_t newCoinFee = txValue * feeRatio;
 
             // Then convert to main coin
             CTxDB txDB("r");
 
             CTxIndex txIndex;
-            if (txDB.ReadNewCoinGenesisTx(tx.getSpendCoinType(), txIndex))
+            if (txDB.ReadNewCoinGenesisTx(coinType.getSpendCoinType(), txIndex))
             {
                 CTransaction newCoinGenesisTx;
                 if (newCoinGenesisTx.ReadFromDisk(txIndex.pos))

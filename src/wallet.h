@@ -201,20 +201,19 @@ public:
     int64_t GetImmatureBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
     int64_t GetStake(const string& coinType = MultiCoins::mainCoinTypeStr) const;
     int64_t GetNewMint(const string& coinType = MultiCoins::mainCoinTypeStr) const;
-    bool CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &wtxNew, CReserveKey &reservekey,
-                               int64_t &nFeeRet);
-    bool CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, CReserveKey &reservekey, int64_t &nFeeRet);
+    bool CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &wtxNew, CReserveKey &reservekey);
+    bool CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, CReserveKey &reservekey);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey);
 
     uint64_t GetStakeWeight() const;
-    bool CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int64_t nSearchInterval, int64_t nFees, CTransaction& txNew, CKey& key);
+    bool CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int64_t nSearchInterval, CTransaction& txNew, CKey& key);
 
     std::string SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, bool fAskFee);
     std::string SendMoneyToDestination(const CTxDestination &address, int64_t nValue, CWalletTx &wtxNew, bool fAskFee);
 
-    bool CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
-                         int64_t newCoinAmount, const CTxDestination &address,
-                         const CTxDestination& buyerAddress, CWalletTx& wtxNew);
+    bool CreateNewCoinTransaction(int64_t mainCoinPayValue, string newCoinType,
+                                  int64_t newCoinAmount, const CTxDestination &publicReciptAddress,
+                                  const CTxDestination &buyerAddress, CWalletTx &wtxNew);
 
     bool NewKeyPool();
     bool TopUpKeyPool(unsigned int nSize = 0);

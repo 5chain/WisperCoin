@@ -17,6 +17,8 @@ namespace MultiCoins
     static const size_t MIN_COIN_TYPE_LENGTH = 3;
     static const size_t MAX_COIN_TYPE_LENGTH = 10;
 
+    static const size_t MIN_CREATE_NEW_COIN_COST = 10000 * COIN;
+
     static const string publicReceiptAddress("mwgB4hAhMPzE4i2omvC5kCb6HGoeFT5GCu");
 
     enum TxOutType
@@ -117,9 +119,9 @@ namespace MultiCoins
 
         // NOTE: Must have one main coin type.
         // Conditions are as follows: (X is currently only main coin type)
-        //  X  -> tx.vout[ X | X-chg | X-fee ]  ...currently only for main coin
-        // X|Y -> tx.vout[ X | X-fee |   Y   ]  ...for create new coin (also have change)
-        // Y|X -> tx.vout[ Y | Y-chg | X-fee ]  ...for new coin transaction
+        //  X  -> tx.vout[ X |   X   | X-chg | X-fee ]  ...currently only for main coin
+        // X|Y -> tx.vout[ X | X-chg | X-fee | Y-new ]  ...for create new coin
+        // Y|X -> tx.vout[ Y | Y-chg | X-fee | X-chg ]  ...for new coin transaction
         bool isFitCoinType(const string &specifiedType, TxOutType txOutType) const
         {
             if (txOutType >= TXOUT_MAX)
@@ -177,11 +179,17 @@ namespace MultiCoins
 
     static const int64_t createNewCoinFee = 10 * COIN;
     static const float feeRatio = 1.f / 10000.f;
+
+    // Be careful setting this: if you set it to zero then
+    // a transaction spammer can cheaply fill blocks using
+    // 1-satoshi-fee transactions. It should be set above the real
+    // cost to you of processing a transaction.
     static const int64_t MIN_FEE = 0.1 * CENT;
     static const int64_t MAX_FEE = std::numeric_limits<int64_t>::max();
 
     // NOTE: the fee can be paied only by main coin type
     static int64_t calculateTxFee(const CTransaction& tx);
+    static int64_t calculateTxFee(const string &coinTypeStr, int64_t txValue);
     static int64_t getFeeInTx(const CTransaction& tx);
 
     static bool isFeeValid(int64_t amount)

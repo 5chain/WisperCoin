@@ -46,7 +46,7 @@ Value getsubsidy(const Array& params, bool fHelp)
             "getsubsidy [nTarget]\n"
             "Returns proof-of-work subsidy value for the specified value of target.");
 
-    return (uint64_t)GetProofOfWorkReward(0);
+    return (uint64_t)GetProofOfWorkReward();
 }
 
 Value getstakesubsidy(const Array& params, bool fHelp)
@@ -73,7 +73,7 @@ Value getstakesubsidy(const Array& params, bool fHelp)
     if (!tx.GetCoinAge(txdb, pindexBest, nCoinAge))
         throw JSONRPCError(RPC_MISC_ERROR, "GetCoinAge failed");
 
-    return (uint64_t)GetProofOfStakeReward(pindexBest, nCoinAge, 0);
+    return (uint64_t)GetProofOfStakeReward(pindexBest, nCoinAge);
 }
 
 Value getmininginfo(const Array& params, bool fHelp)
@@ -97,7 +97,7 @@ Value getmininginfo(const Array& params, bool fHelp)
     diff.push_back(Pair("search-interval",      (int)nLastCoinStakeSearchInterval));
     obj.push_back(Pair("difficulty",    diff));
 
-    obj.push_back(Pair("blockvalue",    (uint64_t)GetProofOfWorkReward(0)));
+    obj.push_back(Pair("blockvalue",    (uint64_t)GetProofOfWorkReward()));
     obj.push_back(Pair("netmhashps",     GetPoWMHashPS()));
     obj.push_back(Pair("netstakeweight", GetPoSKernelPS()));
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
@@ -215,8 +215,7 @@ Value checkkernel(const Array& params, bool fHelp)
     if (!fCreateBlockTemplate)
         return result;
 
-    int64_t nFees;
-    auto_ptr<CBlock> pblock(CreateNewBlock(*pMiningKey, true, &nFees));
+    auto_ptr<CBlock> pblock(CreateNewBlock(*pMiningKey, true));
 
     pblock->nTime = pblock->vtx[0].nTime = nTime;
 
@@ -224,7 +223,6 @@ Value checkkernel(const Array& params, bool fHelp)
     ss << *pblock;
 
     result.push_back(Pair("blocktemplate", HexStr(ss.begin(), ss.end())));
-    result.push_back(Pair("blocktemplatefees", nFees));
 
     CPubKey pubkey;
     if (!pMiningKey->GetReservedKey(pubkey))
@@ -786,7 +784,8 @@ Value createNewCoin(const Array& params, bool isHelp)
     CBitcoinAddress buyerAddress("myqtQvZNVRQRuPYmh8mJtfSQaFctRUJNrp");
 
     CWalletTx newTx;
-    if (!pwalletMain->CreateNewCoinTx(mainCoinPayCount, newCoinType, newCoinAmount, address.Get(), buyerAddress.Get(), newTx))
+    if (!pwalletMain->CreateNewCoinTransaction(mainCoinPayCount, newCoinType, newCoinAmount, address.Get(),
+                                               buyerAddress.Get(), newTx))
         throw JSONRPCError(RPC_INVALID_PARAMS, "Error: Please enter correct new coin amount.");
 
     return Value::null;

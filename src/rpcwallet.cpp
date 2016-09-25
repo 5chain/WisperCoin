@@ -684,12 +684,13 @@ Value sendmany(const Array& params, bool fHelp)
 
     // Send
     CReserveKey keyChange(pwalletMain);
-    int64_t nFeeRequired = 0;
-    bool fCreated = pwalletMain->CreateTransaction(vecSend, wtx, keyChange, nFeeRequired);
+
+    bool fCreated = pwalletMain->CreateTransaction(vecSend, wtx, keyChange);
     if (!fCreated)
     {
-        if (totalAmount + nFeeRequired > pwalletMain->GetBalance())
-            throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
+        // TODO: calc fee.
+//        if (totalAmount + MultiCoins::calculateTxFee() > pwalletMain->GetBalance())
+//            throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
         throw JSONRPCError(RPC_WALLET_ERROR, "Transaction creation failed");
     }
     if (!pwalletMain->CommitTransaction(wtx, keyChange))

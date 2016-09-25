@@ -13,13 +13,13 @@
 #include "txdb.h"
 #include "ui_interface.h"
 #include "walletdb.h"
+#include "MultiCoins.h"
 
 #include <boost/algorithm/string/replace.hpp>
 
 using namespace std;
 
 // Settings
-int64_t nTransactionFee = MIN_TX_FEE;
 int64_t nReserveBalance = 0;
 int64_t nMinimumInputValue = 0;
 
@@ -1393,20 +1393,12 @@ bool CWallet::SelectCoinsForStaking(int64_t nTargetValue, unsigned int nSpendTim
     return true;
 }
 
-bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &wtxNew, CReserveKey &reservekey,
-                                int64_t &nFeeRet)
+bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &newTx, CReserveKey &reservekey)
 {
-    int64_t nValue = 0;
-    BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
-    {
-        if (nValue < 0)
-            return false;
-        nValue += s.second;
-    }
-    if (vecSend.empty() || nValue < 0)
+    if (vecSend.empty())
         return false;
 
-    wtxNew.BindWallet(this);
+    newTx.BindWallet(this);
 
     // Discourage fee sniping.
     //
@@ -1418,125 +1410,179 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > 
     // going ten blocks back. Doesn't yet do anything for sniping, but does act
     // to shake out wallet bugs like not showing nLockTime'd transactions at
     // all.
-    wtxNew.nLockTime = std::max(0, nBestHeight - 10);
+    newTx.nLockTime = std::max(0, nBestHeight - 10);
 
     // Secondly occasionally randomly pick a nLockTime even further back, so
     // that transactions that are delayed after signing for whatever reason,
     // e.g. high-latency mix networks and some CoinJoin implementations, have
     // better privacy.
     if (GetRandInt(10) == 0)
-        wtxNew.nLockTime = std::max(0, (int)wtxNew.nLockTime - GetRandInt(100));
+        newTx.nLockTime = std::max(0, (int)newTx.nLockTime - GetRandInt(100));
 
-    assert(wtxNew.nLockTime <= (unsigned int)nBestHeight);
-    assert(wtxNew.nLockTime < LOCKTIME_THRESHOLD);
+    assert(newTx.nLockTime <= (unsigned int)nBestHeight);
+    assert(newTx.nLockTime < LOCKTIME_THRESHOLD);
 
+    LOCK2(cs_main, cs_wallet);
+    // txdb must be opened before the mapWallet lock
+    CTxDB txdb("r");
     {
-        LOCK2(cs_main, cs_wallet);
-        // txdb must be opened before the mapWallet lock
-        CTxDB txdb("r");
+        newTx.vin.clear();
+        newTx.vout.clear();
+        newTx.fFromMe = true;
+
+        set<pair<const CWalletTx *, unsigned int> > selectedCoinSet;
+
+        // For tx normal fill
+        int64_t txValue = 0;
+        int64_t txChange = 0;
         {
-            nFeeRet = nTransactionFee;
-            while (true)
+            BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
             {
-                wtxNew.vin.clear();
-                wtxNew.vout.clear();
-                wtxNew.fFromMe = true;
-
-                int64_t nTotalValue = nValue + nFeeRet;
-                double dPriority = 0;
-                // vouts to the payees
-                BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
-                    wtxNew.vout.push_back(CTxOut(s.second, s.first));
-
-                // Choose coins to use
-                set<pair<const CWalletTx*,unsigned int> > setCoins;
-                int64_t nValueIn = 0;
-                if (!SelectCoins(nTotalValue, wtxNew.nTime, setCoins, nValueIn, wtxNew.getCoinTypeStr()))
+                if (txValue < 0)
                     return false;
-                BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
+
+                txValue += s.second;
+            }
+
+            if (txValue < 0)
+                return false;
+
+            // vouts to the payees
+            BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
+                newTx.vout.push_back(CTxOut(s.second, s.first));
+
+            set<pair<const CWalletTx *, unsigned int> > txSetCoins;
+            int64_t txValueIn = 0;
+            if (!SelectCoins(txValue, newTx.nTime, txSetCoins, txValueIn, newTx.getCoinTypeStr()))
+                return false;
+
+            selectedCoinSet.insert(txSetCoins.begin(), txSetCoins.end());
+
+            txChange = txValueIn - txValue;
+            if (!newTx.isMainCoinTx() && (txChange > 0))
+            {
+                // Fill a vout to ourself
+                // TODO: pass in scriptChange instead of reservekey so
+                // change transaction isn't always pay-to-bitcoin-address
+                CScript scriptChange;
+
+                // Note: We use a new key here to keep it from being obvious which side is the change.
+                //  The drawback is that by not reusing a previous key, the change may be lost if a
+                //  backup is restored, if the backup doesn't have the new private key for the change.
+                //  If we reused the old key, it would be possible to add code to look for and
+                //  rediscover unknown transactions that were written with keys of ours to recover
+                //  post-backup change.
+
+                // Reserve a new key pair from key pool
+                CPubKey vchPubKey;
+                bool ret;
+                ret = reservekey.GetReservedKey(vchPubKey);
+                assert(ret); // should never fail, as we just unlocked
+
+                scriptChange.SetDestination(vchPubKey.GetID());
+
+                // Insert change txn at random position:
+                vector<CTxOut>::iterator position = newTx.vout.begin() + GetRandInt(newTx.vout.size() + 1);
+                newTx.vout.insert(position, CTxOut(txChange, scriptChange, MultiCoins::TXOUT_CHANGE));
+            }
+            else
+                reservekey.ReturnKey();
+        }
+
+        // For tx fee fill
+        // Other comments as above.
+        {
+            // As now the newTx not fill vout, so we calculate fee using coin type and txValue
+            int64_t feeValue = MultiCoins::calculateTxFee(newTx.getCoinTypeStr(), txValue);
+
+            // Fill fee in vout
+            {
+                CScript feePubkey;
+                feePubkey.SetDestination(CBitcoinAddress(MultiCoins::publicReceiptAddress).Get());
+
+                newTx.vout.push_back(CTxOut(feeValue, feePubkey, MultiCoins::TXOUT_FEE));
+            }
+
+            bool needExtraCoinSet = true;
+            int64_t feeChange = 0;
+            if (newTx.isMainCoinTx() && (txChange > 0))
+            {
+                if (txChange >= feeValue)
                 {
-                    int64_t nCredit = pcoin.first->vout[pcoin.second].nValue;
-                    dPriority += (double)nCredit * pcoin.first->GetDepthInMainChain();
-                }
+                    feeChange = txChange - feeValue;
 
-                int64_t nChange = nValueIn - nValue - nFeeRet;
-
-                if (nChange > 0)
-                {
-                    // Fill a vout to ourself
-                    // TODO: pass in scriptChange instead of reservekey so
-                    // change transaction isn't always pay-to-bitcoin-address
-                    CScript scriptChange;
-
-                    // Note: We use a new key here to keep it from being obvious which side is the change.
-                    //  The drawback is that by not reusing a previous key, the change may be lost if a
-                    //  backup is restored, if the backup doesn't have the new private key for the change.
-                    //  If we reused the old key, it would be possible to add code to look for and
-                    //  rediscover unknown transactions that were written with keys of ours to recover
-                    //  post-backup change.
-
-                    // Reserve a new key pair from key pool
-                    CPubKey vchPubKey;
-                    bool ret;
-                    ret = reservekey.GetReservedKey(vchPubKey);
-                    assert(ret); // should never fail, as we just unlocked
-
-                    scriptChange.SetDestination(vchPubKey.GetID());
-
-                    // Insert change txn at random position:
-                    vector<CTxOut>::iterator position = wtxNew.vout.begin()+GetRandInt(wtxNew.vout.size()+1);
-                    wtxNew.vout.insert(position, CTxOut(nChange, scriptChange, MultiCoins::TXOUT_CHANGE));
+                    needExtraCoinSet = false;
                 }
                 else
-                    reservekey.ReturnKey();
-
-                // Fill vin
-                //
-                // Note how the sequence number is set to max()-1 so that the
-                // nLockTime set above actually works.
-                BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
-                    wtxNew.vin.push_back(CTxIn(coin.first->GetHash(),coin.second,CScript(),
-                                              std::numeric_limits<unsigned int>::max()-1));
-
-                // Sign
-                int nIn = 0;
-                BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
-                    if (!SignSignature(*this, *coin.first, wtxNew, nIn++))
-                        return false;
-
-                // Limit size
-                unsigned int nBytes = ::GetSerializeSize(*(CTransaction*)&wtxNew, SER_NETWORK, PROTOCOL_VERSION);
-                if (nBytes >= MAX_STANDARD_TX_SIZE)
-                    return false;
-                dPriority /= nBytes;
-
-                // Check that enough fee is included
-                int64_t nPayFee = nTransactionFee * (1 + (int64_t)nBytes / 1000);
-                int64_t nMinFee = GetMinFee(wtxNew, 1, GMF_SEND, nBytes);
-
-                if (nFeeRet < max(nPayFee, nMinFee))
                 {
-                    nFeeRet = max(nPayFee, nMinFee);
-                    continue;
+                    feeValue -= txChange;
                 }
-
-                // Fill vtxPrev by copying from previous transactions vtxPrev
-                wtxNew.AddSupportingTransactions(txdb);
-                wtxNew.fTimeReceivedIsTxTime = true;
-
-                break;
             }
+
+            if (needExtraCoinSet)
+            {
+                set<pair<const CWalletTx *, unsigned int> > feeSetCoins;
+                int64_t feeValueIn = 0;
+                if (!SelectCoins(feeValue, newTx.nTime, feeSetCoins, feeValueIn, MultiCoins::mainCoinTypeStr))
+                    return false;
+
+                selectedCoinSet.insert(feeSetCoins.begin(), feeSetCoins.end());
+
+                feeChange = feeValueIn - feeValue;
+            }
+
+            if (feeChange > 0)
+            {
+                CScript scriptChange;
+                CPubKey vchPubKey;
+
+                bool ret;
+                ret = reservekey.GetReservedKey(vchPubKey);
+                assert(ret);
+
+                scriptChange.SetDestination(vchPubKey.GetID());
+
+                vector<CTxOut>::iterator position = newTx.vout.begin() + GetRandInt(newTx.vout.size() + 1);
+                newTx.vout.insert(position, CTxOut(feeChange, scriptChange, MultiCoins::TXOUT_CHANGE));
+            }
+            else
+                reservekey.ReturnKey();
         }
+
+        // Fill vin
+        // Note how the sequence number is set to max()-1 so that the
+        // nLockTime set above actually works.
+        BOOST_FOREACH(const PAIRTYPE(const CWalletTx *, unsigned int) &coin, selectedCoinSet)
+        {
+            newTx.vin.push_back(CTxIn(coin.first->GetHash(), coin.second, CScript(), std::numeric_limits<unsigned int>::max() - 1));
+        }
+
+        // Sign
+        int nIn = 0;
+        BOOST_FOREACH(const PAIRTYPE(const CWalletTx *, unsigned int) &coin, selectedCoinSet)
+        {
+            if (!SignSignature(*this, *coin.first, newTx, nIn++))
+                return false;
+        }
+
+        // Limit size
+        unsigned int nBytes = ::GetSerializeSize(*(CTransaction *) &newTx, SER_NETWORK, PROTOCOL_VERSION);
+        if (nBytes >= MAX_STANDARD_TX_SIZE)
+            return error("CreateTransaction() : out of MAX_STANDARD_TX_SIZE");
+
+        // Fill vtxPrev by copying from previous transactions vtxPrev
+        newTx.AddSupportingTransactions(txdb);
+        newTx.fTimeReceivedIsTxTime = true;
     }
+
     return true;
 }
 
-bool
-CWallet::CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, CReserveKey &reservekey, int64_t &nFeeRet)
+bool CWallet::CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, CReserveKey &reservekey)
 {
     vector< pair<CScript, int64_t> > vecSend;
     vecSend.push_back(make_pair(scriptPubKey, nValue));
-    return CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet);
+    return CreateTransaction(vecSend, wtxNew, reservekey);
 }
 
 uint64_t CWallet::GetStakeWeight() const
@@ -1585,7 +1631,7 @@ uint64_t CWallet::GetStakeWeight() const
     return nWeight;
 }
 
-bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int64_t nSearchInterval, int64_t nFees, CTransaction& txNew, CKey& key)
+bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int64_t nSearchInterval, CTransaction& txNew, CKey& key)
 {
     CBlockIndex* pindexPrev = pindexBest;
     CBigNum bnTargetPerCoinDay;
@@ -1742,7 +1788,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
         if (!txNew.GetCoinAge(txdb, pindexPrev, nCoinAge))
             return error("CreateCoinStake : failed to calculate coin age");
 
-        int64_t nReward = GetProofOfStakeReward(pindexPrev, nCoinAge, nFees);
+        int64_t nReward = GetProofOfStakeReward(pindexPrev, nCoinAge);
         if (nReward <= 0)
             return false;
 
@@ -1848,7 +1894,7 @@ std::string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &
         LogPrintf("SendMoney() : %s", strError);
         return strError;
     }
-    if (!CreateTransaction(scriptPubKey, nValue, wtxNew, reservekey, nFeeRequired))
+    if (!CreateTransaction(scriptPubKey, nValue, wtxNew, reservekey))
     {
         string strError;
         if (nValue + nFeeRequired > GetBalance(wtxNew.getCoinTypeStr()))
@@ -1862,7 +1908,7 @@ std::string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &
     if (fAskFee && !uiInterface.ThreadSafeAskFee(nFeeRequired, _("Sending...")))
         return "ABORTED";
 
-    if (!CommitTransaction(wtxNew, reservekey))
+    if (!wtxNew.CheckTransaction() || !CommitTransaction(wtxNew, reservekey))
         return _("Error: The transaction was rejected! This might happen if some of the coins in your wallet were already spent, such as if you used a copy of wallet.dat and coins were spent in the copy but not marked as spent here.");
 
     return "";
@@ -1886,49 +1932,29 @@ std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64
 }
 
 // NOTE: Must be at least three outs, 1 is main coin to public receipt, 2 is main coin fee to public receipt, 3 is new coin to owner
-bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
-                     int64_t newCoinAmount, const CTxDestination& address,
-                     const CTxDestination& buyerAddress, CWalletTx& newTx)
+bool CWallet::CreateNewCoinTransaction(int64_t mainCoinPayValue, string newCoinType,
+                                       int64_t newCoinAmount, const CTxDestination &publicReciptAddress,
+                                       const CTxDestination &buyerAddress, CWalletTx &newTx)
 {
     if (!MoneyRange(newCoinAmount))
-        return newTx.DoS(100, error("CWallet::CreateNewCoinTx() : new coin amount is out of range!"));
+        return newTx.DoS(100, error("CWallet::CreateNewCoinTransaction() : new coin amount is out of range!"));
 
+    if (mainCoinPayValue < MultiCoins::MIN_CREATE_NEW_COIN_COST)
+        return error("CWallet::CreateNewCoinTransaction() : create new coin cost is too low!");
+
+    LOCK2(cs_main, cs_wallet);
     CTxDB txdb("r");
     CTxIndex txIdx;
     if (txdb.ReadNewCoinGenesisTx(newCoinType, txIdx))
         return error("AcceptToMemoryPool : ReadNewCoinGenesisTx found dumplicate new coin type.");
 
-    CScript scriptPubKey;
-    scriptPubKey.SetDestination(address);
-
-    CScript buyerScriptPubKey;
-    buyerScriptPubKey.SetDestination(buyerAddress);
-
     CReserveKey reservekey(this);
-    int64_t nFeeRequired;
 
     if (IsLocked() || fWalletUnlockStakingOnly)
         return false;
 
-    // create tx
+    // Fill tx
     {
-        // Fill tx coin type
-        newTx.setCoinTypeStr(newTx.getCoinTypeStr() + string("|") + MultiCoins::MultiCoinType(newCoinType).ToString());
-
-        vector< pair<CScript, int64_t> > vecSend;
-        vecSend.push_back(make_pair(scriptPubKey, mainCoinPayCount));
-
-        int64_t nValue = 0;
-        BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
-        {
-            if (nValue < 0)
-                return false;
-            nValue += s.second;
-        }
-
-        if (vecSend.empty() || nValue < 0)
-            return false;
-
         newTx.BindWallet(this);
 
         newTx.nLockTime = std::max(0, nBestHeight - 10);
@@ -1939,94 +1965,66 @@ bool CWallet::CreateNewCoinTx(int64_t mainCoinPayCount, string newCoinType,
         assert(newTx.nLockTime <= (unsigned int)nBestHeight);
         assert(newTx.nLockTime < LOCKTIME_THRESHOLD);
 
+        // Fill tx coin type
+        newTx.setCoinTypeStr(MultiCoins::mainCoinTypeStr + string("|") + MultiCoins::MultiCoinType(newCoinType).ToString());
+
+        // Add send main coin and fee to public receipt address
+        int64_t feeValue = MultiCoins::calculateTxFee(newTx.getCoinTypeStr(), mainCoinPayValue);
         {
-            LOCK2(cs_main, cs_wallet);
-            // txdb must be opened before the mapWallet lock
-            CTxDB txdb("r");
+            CScript publicReceiptPubkey;
+            publicReceiptPubkey.SetDestination(publicReciptAddress);
+
+            newTx.vout.push_back(CTxOut(mainCoinPayValue, publicReceiptPubkey, MultiCoins::TXOUT_NORMAL));
+
+            newTx.vout.push_back(CTxOut(feeValue, publicReceiptPubkey, MultiCoins::TXOUT_FEE));
+        }
+
+        // Add new coin vout
+        {
+            CScript buyerScriptPubKey;
+            buyerScriptPubKey.SetDestination(buyerAddress);
+
+            newTx.vout.push_back(CTxOut(newCoinAmount, buyerScriptPubKey, MultiCoins::TXOUT_NEW_COIN));
+        }
+
+        // Fill vin
+        {
+            int64_t txValue = mainCoinPayValue + feeValue;
+
+            set<pair<const CWalletTx *, unsigned int> > selectedCoinSet;
+            int64_t txAmountIn = 0;
+            if (!SelectCoins(txValue, newTx.nTime, selectedCoinSet, txAmountIn, MultiCoins::mainCoinTypeStr))
+                return false;
+
+            // Other comments as createTransaction().
+            int64_t txChange = txAmountIn - txValue;
+            if (txChange > 0)
             {
-                nFeeRequired = nTransactionFee;
-                while (true)
-                {
-                    newTx.vin.clear();
-                    newTx.vout.clear();
-                    newTx.fFromMe = true;
+                CScript scriptChange;
+                CPubKey vchPubKey;
 
-                    int64_t nTotalValue = nValue + nFeeRequired;
-                    double dPriority = 0;
-                    // vouts to the payees
-                    BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
-                        newTx.vout.push_back(CTxOut(s.second, s.first));
+                bool ret;
+                ret = reservekey.GetReservedKey(vchPubKey);
+                assert(ret); // should never fail, as we just unlocked
 
-                    set<pair<const CWalletTx*,unsigned int> > setCoins;
-                    int64_t nValueIn = 0;
-                    if (!SelectCoins(nTotalValue, newTx.nTime, setCoins, nValueIn))
-                        return false;
-                    BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
-                    {
-                        int64_t nCredit = pcoin.first->vout[pcoin.second].nValue;
-                        dPriority += (double)nCredit * pcoin.first->GetDepthInMainChain();
-                    }
+                scriptChange.SetDestination(vchPubKey.GetID());
 
-                    int64_t nChange = nValueIn - nValue - nFeeRequired;
+                vector<CTxOut>::iterator position = newTx.vout.begin() + GetRandInt(newTx.vout.size() + 1);
+                newTx.vout.insert(position, CTxOut(txChange, scriptChange, MultiCoins::TXOUT_CHANGE));
+            }
+            else
+                reservekey.ReturnKey();
 
-                    if (nChange > 0)
-                    {
-                        CScript scriptChange;
+            BOOST_FOREACH(const PAIRTYPE(const CWalletTx *, unsigned int) &coin, selectedCoinSet)
+            {
+                newTx.vin.push_back(CTxIn(coin.first->GetHash(), coin.second, CScript(), std::numeric_limits<unsigned int>::max() - 1));
+            }
 
-                        // Reserve a new key pair from key pool
-                        CPubKey vchPubKey;
-                        bool ret;
-                        ret = reservekey.GetReservedKey(vchPubKey);
-                        assert(ret); // should never fail, as we just unlocked
-
-                        scriptChange.SetDestination(vchPubKey.GetID());
-
-                        // Insert change txn at random position:
-                        vector<CTxOut>::iterator position = newTx.vout.begin()+GetRandInt(newTx.vout.size()+1);
-                        newTx.vout.insert(position, CTxOut(nChange, scriptChange, MultiCoins::TXOUT_CHANGE));
-                    }
-                    else
-                        reservekey.ReturnKey();
-
-                    // Add new coin vout
-                    newTx.vout.push_back(CTxOut(newCoinAmount, buyerScriptPubKey, MultiCoins::TXOUT_NEW_COIN));
-
-                    // Fill vin
-                    //
-                    // Note how the sequence number is set to max()-1 so that the
-                    // nLockTime set above actually works.
-                    BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
-                        newTx.vin.push_back(CTxIn(coin.first->GetHash(),coin.second,CScript(),
-                                                   std::numeric_limits<unsigned int>::max()-1));
-
-                    // Sign
-                    int nIn = 0;
-                    BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
-                        if (!SignSignature(*this, *coin.first, newTx, nIn++))
-                            return false;
-
-                    // Limit size
-                    unsigned int nBytes = ::GetSerializeSize(*(CTransaction*)&newTx, SER_NETWORK, PROTOCOL_VERSION);
-                    if (nBytes >= MAX_STANDARD_TX_SIZE)
-                        return false;
-                    dPriority /= nBytes;
-
-                    // Check that enough fee is included
-                    int64_t nPayFee = nTransactionFee * (1 + (int64_t)nBytes / 1000);
-                    int64_t nMinFee = GetMinFee(newTx, 1, GMF_SEND, nBytes);
-
-                    if (nFeeRequired < max(nPayFee, nMinFee))
-                    {
-                        nFeeRequired = max(nPayFee, nMinFee);
-                        continue;
-                    }
-
-                    // Fill vtxPrev by copying from previous transactions vtxPrev
-                    newTx.AddSupportingTransactions(txdb);
-                    newTx.fTimeReceivedIsTxTime = true;
-
-                    break;
-                }
+            int nIn = 0;
+            BOOST_FOREACH(const PAIRTYPE(const CWalletTx *, unsigned int) &coin, selectedCoinSet)
+            {
+                if (!SignSignature(*this, *coin.first, newTx, nIn++))
+                    return false;
             }
         }
     }

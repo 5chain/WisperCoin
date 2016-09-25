@@ -13,7 +13,7 @@ extern bool gNeedSakeMining;
 extern CCriticalSection gNeedSakeMiningLock;
 
 /* Generate a new block, without valid proof-of-work */
-CBlock* CreateNewBlock(CReserveKey& reservekey, bool fProofOfStake=false, int64_t* pFees = 0);
+CBlock* CreateNewBlock(CReserveKey& reservekey, bool fProofOfStake=false);
 
 /** Modify the extranonce in a block */
 void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
