@@ -67,10 +67,21 @@ namespace MultiCoins
                 CTransaction newCoinGenesisTx;
                 if (newCoinGenesisTx.ReadFromDisk(txIndex.pos))
                 {
-                    // See createNewCoinTx() description.
-                    if (newCoinGenesisTx.vout.size() == 3)
+                    if (newCoinGenesisTx.isCreateNewCoin())
                     {
-                        float ratioNew2Main = (double)newCoinGenesisTx.vout[0].nValue / newCoinGenesisTx.vout[2].nValue;
+                        int64_t newCoinAmount = 0;
+                        int64_t payCoinAmount = 0;
+
+                        BOOST_FOREACH(const CTxOut &txOut, newCoinGenesisTx.vout)
+                        {
+                            if (txOut.getType() == TXOUT_NEW_COIN)
+                                newCoinAmount += txOut.nValue;
+
+                            if (txOut.getType() == TXOUT_NORMAL)
+                                payCoinAmount += txOut.nValue;
+                        }
+
+                        float ratioNew2Main = (double)payCoinAmount / newCoinAmount;
 
                         feeVal = newCoinFee * ratioNew2Main;
                     }

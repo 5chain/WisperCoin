@@ -30,8 +30,8 @@ static void accountingDeprecationCheck()
             "It can easily result in negative or odd balances if misused or misunderstood, which has happened in the field.\n"
             "If you still want to enable it, add to your config file enableaccounts=1\n");
 
-    if (GetBoolArg("-staking", true))
-        throw runtime_error("If you want to use accounting API, staking must be disabled, add to your config file staking=0\n");
+//    if (GetBoolArg("-staking", true))
+//        throw runtime_error("If you want to use accounting API, staking must be disabled, add to your config file staking=0\n");
 }
 
 std::string HelpRequiringPassphrase()
@@ -278,7 +278,12 @@ Value sendtoaddress(const Array& params, bool fHelp)
     // Wallet comments
     CWalletTx wtx;
     if (params.size() > 2 && params[2].type() != null_type && !params[2].get_str().empty())
-        wtx.setCoinTypeStr(MultiCoins::MultiCoinType(params[2].get_str()).ToString());
+    {
+        string coinType = params[2].get_str();
+        if (coinType != MultiCoins::mainCoinTypeStr)
+            wtx.setCoinTypeStr(MultiCoins::MultiCoinType(coinType, MultiCoins::feeCoinTypeStr).ToString());
+    }
+
     if (params.size() > 3 && params[3].type() != null_type && !params[3].get_str().empty())
         wtx.mapValue["comment"] = params[3].get_str();
     if (params.size() > 4 && params[4].type() != null_type && !params[4].get_str().empty())
@@ -590,6 +595,8 @@ Value movecmd(const Array& params, bool fHelp)
 
 Value sendfrom(const Array& params, bool fHelp)
 {
+    throw runtime_error("not support now.");
+
     if (fHelp || params.size() < 3 || params.size() > 7)
         throw runtime_error(
             "sendfrom <fromaccount> <toblackcoinaddress> <amount> [minconf=1] [comment] [comment-to]\n"
@@ -633,13 +640,13 @@ Value sendfrom(const Array& params, bool fHelp)
 
 Value sendmany(const Array& params, bool fHelp)
 {
-    // if (fHelp || params.size() < 2 || params.size() > 4)
-//        throw runtime_error(
-//            "sendmany <fromaccount> {address:amount,...} [minconf=1] [comment]\n"
-//            "amounts are double-precision floating point numbers"
-//            + HelpRequiringPassphrase());
-
     throw runtime_error("not support now.");
+
+    if (fHelp || params.size() < 2 || params.size() > 4)
+        throw runtime_error(
+            "sendmany <fromaccount> {address:amount,...} [minconf=1] [comment]\n"
+            "amounts are double-precision floating point numbers"
+            + HelpRequiringPassphrase());
 
     string strAccount = AccountFromValue(params[0]);
     Object sendTo = params[1].get_obj();

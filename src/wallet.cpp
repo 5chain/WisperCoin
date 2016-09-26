@@ -1393,6 +1393,7 @@ bool CWallet::SelectCoinsForStaking(int64_t nTargetValue, unsigned int nSpendTim
     return true;
 }
 
+// X and Y|X cases.
 bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &newTx, CReserveKey &reservekey)
 {
     if (vecSend.empty())
@@ -1453,7 +1454,7 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > 
 
             set<pair<const CWalletTx *, unsigned int> > txSetCoins;
             int64_t txValueIn = 0;
-            if (!SelectCoins(txValue, newTx.nTime, txSetCoins, txValueIn, newTx.getCoinTypeStr()))
+            if (!SelectCoins(txValue, newTx.nTime, txSetCoins, txValueIn, newTx.getSpendCoinType()))
                 return false;
 
             selectedCoinSet.insert(txSetCoins.begin(), txSetCoins.end());
@@ -1483,7 +1484,7 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > 
 
                 // Insert change txn at random position:
                 vector<CTxOut>::iterator position = newTx.vout.begin() + GetRandInt(newTx.vout.size() + 1);
-                newTx.vout.insert(position, CTxOut(txChange, scriptChange, MultiCoins::TXOUT_CHANGE));
+                newTx.vout.insert(position, CTxOut(txChange, scriptChange, MultiCoins::TXOUT_CHANGE_NORMAL));
             }
             else
                 reservekey.ReturnKey();
@@ -1523,7 +1524,7 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > 
             {
                 set<pair<const CWalletTx *, unsigned int> > feeSetCoins;
                 int64_t feeValueIn = 0;
-                if (!SelectCoins(feeValue, newTx.nTime, feeSetCoins, feeValueIn, MultiCoins::mainCoinTypeStr))
+                if (!SelectCoins(feeValue, newTx.nTime, feeSetCoins, feeValueIn, MultiCoins::feeCoinTypeStr))
                     return false;
 
                 selectedCoinSet.insert(feeSetCoins.begin(), feeSetCoins.end());
@@ -1543,7 +1544,7 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > 
                 scriptChange.SetDestination(vchPubKey.GetID());
 
                 vector<CTxOut>::iterator position = newTx.vout.begin() + GetRandInt(newTx.vout.size() + 1);
-                newTx.vout.insert(position, CTxOut(feeChange, scriptChange, MultiCoins::TXOUT_CHANGE));
+                newTx.vout.insert(position, CTxOut(feeChange, scriptChange, MultiCoins::TXOUT_CHANGE_MAIN_COIN));
             }
             else
                 reservekey.ReturnKey();
@@ -1641,7 +1642,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     txNew.vout.clear();
 
     // Must be main coin type
-    txNew.setCoinTypeStr(MultiCoins::mainCoinTypeStr);
+    txNew.setCoinTypeStr(MultiCoins::rewardCoinTypeStr);
 
     // Mark coin stake transaction
     CScript scriptEmpty;
@@ -1866,7 +1867,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
         if (!wtxNew.AcceptToMemoryPool())
         {
             // This must not fail. The transaction has already been signed and recorded.
-            LogPrintf("CommitTransaction() : Error: Transaction not valid\n");
+            LogPrintf("CommitTransaction() : Error: Transaction not valid. Use rpc repairwallet to fix.\n");
             return false;
         }
         wtxNew.RelayWalletTransaction();
@@ -1880,7 +1881,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 std::string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &wtxNew, bool fAskFee)
 {
     CReserveKey reservekey(this);
-    int64_t nFeeRequired;
+    int64_t nFeeRequired = MultiCoins::calculateTxFee(wtxNew.getCoinTypeStr(), nValue);
 
     if (IsLocked())
     {
@@ -1897,7 +1898,7 @@ std::string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx &
     if (!CreateTransaction(scriptPubKey, nValue, wtxNew, reservekey))
     {
         string strError;
-        if (nValue + nFeeRequired > GetBalance(wtxNew.getCoinTypeStr()))
+        if ((nValue > GetBalance(wtxNew.getSpendCoinType())) || (nFeeRequired > GetBalance(MultiCoins::feeCoinTypeStr)))
             strError = strprintf(_("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds!"), FormatMoney(nFeeRequired));
         else
             strError = _("Error: Transaction creation failed!");
@@ -1921,8 +1922,12 @@ std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64
     // Check amount
     if (nValue <= 0)
         return _("Invalid amount");
-    if (nValue + MultiCoins::calculateTxFee(wtxNew.getCoinTypeStr(), nValue) > GetBalance(wtxNew.getCoinTypeStr()))
+
+    if (nValue > GetBalance(wtxNew.getSpendCoinType()))
         return _("Insufficient funds");
+
+    if (MultiCoins::calculateTxFee(wtxNew.getCoinTypeStr(), nValue) > GetBalance(MultiCoins::feeCoinTypeStr))
+        return _("Insufficient fee funds");
 
     // Parse Bitcoin address
     CScript scriptPubKey;
@@ -1932,6 +1937,7 @@ std::string CWallet::SendMoneyToDestination(const CTxDestination &address, int64
 }
 
 // NOTE: Must be at least three outs, 1 is main coin to public receipt, 2 is main coin fee to public receipt, 3 is new coin to owner
+// X|Y case.
 bool CWallet::CreateNewCoinTransaction(int64_t mainCoinPayValue, string newCoinType,
                                        int64_t newCoinAmount, const CTxDestination &publicReciptAddress,
                                        const CTxDestination &buyerAddress, CWalletTx &newTx)
@@ -1966,7 +1972,7 @@ bool CWallet::CreateNewCoinTransaction(int64_t mainCoinPayValue, string newCoinT
         assert(newTx.nLockTime < LOCKTIME_THRESHOLD);
 
         // Fill tx coin type
-        newTx.setCoinTypeStr(MultiCoins::mainCoinTypeStr + string("|") + MultiCoins::MultiCoinType(newCoinType).ToString());
+        newTx.setCoinTypeStr(MultiCoins::MultiCoinType(MultiCoins::mainCoinTypeStr, newCoinType).ToString());
 
         // Add send main coin and fee to public receipt address
         int64_t feeValue = MultiCoins::calculateTxFee(newTx.getCoinTypeStr(), mainCoinPayValue);
@@ -1994,7 +2000,7 @@ bool CWallet::CreateNewCoinTransaction(int64_t mainCoinPayValue, string newCoinT
             set<pair<const CWalletTx *, unsigned int> > selectedCoinSet;
             int64_t txAmountIn = 0;
             if (!SelectCoins(txValue, newTx.nTime, selectedCoinSet, txAmountIn, MultiCoins::mainCoinTypeStr))
-                return false;
+                return error("CreateNewCoinTransaction() : not have enough main coin");
 
             // Other comments as createTransaction().
             int64_t txChange = txAmountIn - txValue;
@@ -2010,7 +2016,7 @@ bool CWallet::CreateNewCoinTransaction(int64_t mainCoinPayValue, string newCoinT
                 scriptChange.SetDestination(vchPubKey.GetID());
 
                 vector<CTxOut>::iterator position = newTx.vout.begin() + GetRandInt(newTx.vout.size() + 1);
-                newTx.vout.insert(position, CTxOut(txChange, scriptChange, MultiCoins::TXOUT_CHANGE));
+                newTx.vout.insert(position, CTxOut(txChange, scriptChange, MultiCoins::TXOUT_CHANGE_MAIN_COIN));
             }
             else
                 reservekey.ReturnKey();

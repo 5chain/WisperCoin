@@ -17,17 +17,18 @@ namespace MultiCoins
     static const size_t MIN_COIN_TYPE_LENGTH = 3;
     static const size_t MAX_COIN_TYPE_LENGTH = 10;
 
-    static const size_t MIN_CREATE_NEW_COIN_COST = 10000 * COIN;
+    static const int64_t MIN_CREATE_NEW_COIN_COST = 10000 * COIN;
 
-    static const string publicReceiptAddress("mwgB4hAhMPzE4i2omvC5kCb6HGoeFT5GCu");
+    static const string publicReceiptAddress("mv4orevizvTefSQYBgN5dAe93Tmw1PxBGu");
 
     enum TxOutType
     {
         TXOUT_NORMAL = 0,
-        TXOUT_CHANGE = 1,
-        TXOUT_FEE = 2,
-        TXOUT_NEW_COIN = 3,
-        TXOUT_MAX = 4
+        TXOUT_CHANGE_NORMAL = 1, // for Y|X case
+        TXOUT_CHANGE_MAIN_COIN = 2, // for X and X|Y cases
+        TXOUT_FEE = 3,
+        TXOUT_NEW_COIN = 4,
+        TXOUT_MAX = 5
     };
 
     static bool isCoinTypeValid(const string& coinType)
@@ -47,10 +48,15 @@ namespace MultiCoins
     class MultiCoinType //: public CBase58Data
     {
     public:
-        MultiCoinType(const std::string& originTypeStr = string())
+        explicit MultiCoinType(const std::string &originTypeStr = string())
         {
             mType = originTypeStr;
             //SetData(Params().Base58Prefix(CChainParams::COIN_TYPE), originTypeStr.c_str(), originTypeStr.size());
+        }
+
+        explicit MultiCoinType(const std::string &from, const std::string &to)
+        {
+            mType = from + "|" + to;
         }
 
         string decodeTypeStr()
@@ -69,7 +75,8 @@ namespace MultiCoins
     };
 
     static const string mainCoinTypeStr = MultiCoinType("wsc").ToString();
-    static const string allCoinTypeStr = MultiCoinType("*").ToString();
+    static const string feeCoinTypeStr = mainCoinTypeStr;
+    static const string rewardCoinTypeStr = mainCoinTypeStr;
 
     class CoinType
     {
@@ -154,11 +161,11 @@ namespace MultiCoins
                 {
                     if (specifiedType == mFirstType)
                     {
-                        return (txOutType != TXOUT_FEE);
+                        return (txOutType == TXOUT_NORMAL) || (txOutType == TXOUT_CHANGE_NORMAL);
                     }
                     else if (specifiedType == mSecondType)
                     {
-                        return (txOutType == TXOUT_FEE);
+                        return (txOutType == TXOUT_FEE) || (txOutType == TXOUT_CHANGE_MAIN_COIN);
                     }
                 }
             }

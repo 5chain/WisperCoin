@@ -120,7 +120,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, bool fProofOfStake)
     txNew.vout.resize(1);
 
     // Must be main coin type
-    txNew.setCoinTypeStr(MultiCoins::mainCoinTypeStr);
+    txNew.setCoinTypeStr(MultiCoins::rewardCoinTypeStr);
 
     if (!fProofOfStake)
     {
@@ -554,19 +554,26 @@ void ThreadStakeMiner(CWallet *pwallet)
         //
         // Create new block
         //
-        auto_ptr<CBlock> pblock(CreateNewBlock(reservekey, true));
-        if (!pblock.get())
-            return;
-
-        // Trying to sign a block
-        if (pblock->SignBlock(*pwallet))
+        try
         {
-            SetThreadPriority(THREAD_PRIORITY_NORMAL);
-            CheckStake(pblock.get(), *pwallet);
-            SetThreadPriority(THREAD_PRIORITY_LOWEST);
-            MilliSleep(500);
+            auto_ptr<CBlock> pblock(CreateNewBlock(reservekey, true));
+            if (!pblock.get())
+                return;
+
+            // Trying to sign a block
+            if (pblock->SignBlock(*pwallet))
+            {
+                SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                CheckStake(pblock.get(), *pwallet);
+                SetThreadPriority(THREAD_PRIORITY_LOWEST);
+                MilliSleep(500);
+            }
+            else
+                MilliSleep(nMinerSleep);
         }
-        else
-            MilliSleep(nMinerSleep);
+        catch (std::exception &err)
+        {
+            cout << err.what() << endl;
+        }
     }
 }

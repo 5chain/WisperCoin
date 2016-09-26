@@ -769,17 +769,19 @@ Value toggleStakeMining(const Array& params, bool isHelp)
 
 Value createNewCoin(const Array& params, bool isHelp)
 {
-    if (params.size() != 0)
-        throw runtime_error("You need specify \"0\" or \"1\" param.");
+    if (isHelp || params.size() != 4)
+        throw runtime_error(
+            "You need specify 5 params. Note that the newCoinType param is just as zzc, btc and so on.\n"
+            "createNewCoin <mainCoinAmount> <newCoinType> <newCoinAmount> <yourAddress>\n");
 
     if (pwalletMain->IsLocked())
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 
-    int64_t mainCoinPayCount = AmountFromValue(10000);
-    string newCoinType = "zzc";
-    int64_t newCoinAmount = AmountFromValue(10000000);
+    int64_t mainCoinPayCount = AmountFromValue(atoi64(params[0].get_str()));
+    string newCoinType = params[1].get_str();
+    int64_t newCoinAmount = AmountFromValue(atoi64(params[2].get_str()));
     CBitcoinAddress address(MultiCoins::publicReceiptAddress);
-    CBitcoinAddress buyerAddress("myqtQvZNVRQRuPYmh8mJtfSQaFctRUJNrp");
+    CBitcoinAddress buyerAddress(params[3].get_str());
 
     CWalletTx newTx;
     if (!pwalletMain->CreateNewCoinTransaction(mainCoinPayCount, newCoinType, newCoinAmount, address.Get(),

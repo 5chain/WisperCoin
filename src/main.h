@@ -202,7 +202,7 @@ private:
     string mCoinTypeStr = MultiCoins::mainCoinTypeStr;
 
     // Only in memory
-    MultiCoins::CoinType mCoinType = MultiCoins::CoinType(MultiCoins::mainCoinTypeStr);
+    mutable MultiCoins::CoinType mCoinType = MultiCoins::CoinType(MultiCoins::mainCoinTypeStr);
 
 public:
     static const int CURRENT_VERSION=1;
@@ -244,6 +244,17 @@ public:
             throw logic_error("isFitCoinType() : out index out of range.");
 
         return mCoinType.isFitCoinType(specifiedType, this->vout[outVecIdx].getType());
+    }
+
+    inline bool isFitCoinType(const string &specifiedType1, const string &specifiedType2, unsigned int outVecIdx) const
+    {
+        if (!this->isFitCoinType(specifiedType1, outVecIdx))
+            return false;
+
+        if ((specifiedType1 != specifiedType2) && !this->isFitCoinType(specifiedType2, outVecIdx))
+            return false;
+
+        return true;
     }
 
     inline bool isMainCoinTx() const
@@ -288,6 +299,9 @@ public:
         READWRITE(vout);
         READWRITE(nLockTime);
         READWRITE(mCoinTypeStr);
+
+        if (fRead)
+            mCoinType = MultiCoins::CoinType(mCoinTypeStr);
     )
 
     void SetNull()

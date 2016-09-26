@@ -590,7 +590,8 @@ bool CTransaction::CheckTransaction() const
                     ++normalCount;
                     break;
 
-                case MultiCoins::TXOUT_CHANGE:
+                case MultiCoins::TXOUT_CHANGE_NORMAL:
+                case MultiCoins::TXOUT_CHANGE_MAIN_COIN:
                     ++changeCount;
                     break;
 
@@ -627,7 +628,7 @@ bool CTransaction::CheckTransaction() const
                 // If not find txPrev,it should be an orphan tx.
                 if (txPrev.ReadFromDisk(txDB, txin.prevout, txindex) || mempool.lookup(txin.prevout.hash, txPrev))
                 {
-                    if (!txPrev.isFitCoinType(this->getCoinTypeStr(), txin.prevout.n))
+                    if (!txPrev.isFitCoinType(this->getSpendCoinType(), MultiCoins::feeCoinTypeStr, txin.prevout.n))
                         return DoS(100, error("CTransaction::CheckTransaction() : tx coin type isnot the same as prevout!"));
                 }
             }
@@ -639,7 +640,7 @@ bool CTransaction::CheckTransaction() const
 
             BOOST_FOREACH(const CTxOut &txOut, this->vout)
             {
-                if ((txOut.getType() == MultiCoins::TXOUT_NEW_COIN)
+                if ((txOut.getType() == MultiCoins::TXOUT_NORMAL)
                     && !MultiCoins::isSentToPublicReceipt(txOut.scriptPubKey))
                     return DoS(100, error("CTransaction::CheckTransaction() : tx for create new coin has wrong params!"));
             }
@@ -1325,7 +1326,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs, map<uint256, CTx
                     return DoS(1, error("ConnectInputs() : special marker is not spendable"));
             }
 
-            if (!txPrev.isFitCoinType(this->getCoinTypeStr(), prevout.n))
+            if (!txPrev.isFitCoinType(this->getSpendCoinType(), MultiCoins::feeCoinTypeStr, prevout.n))
                 return DoS(100, error("ConnectInputs() : vin not fit coin type"));
 
             // Check for negative or overflow input values
