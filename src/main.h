@@ -339,14 +339,10 @@ public:
         return nValueOut;
     }
 
-    /** Amount of bitcoins coming in to this transaction
-        Note that lightweight clients may not know anything besides the hash of previous transactions,
-        so may not be able to calculate this.
-
-        @param[in] mapInputs	Map of previous transactions that have outputs we're spending
-        @return	Sum of value of all inputs (scriptSigs)
-        @see CTransaction::FetchInputs
-     */
+    // NOTE: This func doesnot distinguish multi coin types, only sum up all the vin amount.
+    // Maybe used for compare with all vin amount, or coinbase and coinstake reward.
+    // And that lightweight clients may not know anything besides the hash of previous transactions,
+    // so may not be able to calculate this.
     int64_t GetValueIn(const MapPrevTx& mapInputs) const;
 
     bool ReadFromDisk(CDiskTxPos pos, FILE** pfileRet=NULL)

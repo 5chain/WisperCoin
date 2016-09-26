@@ -35,7 +35,7 @@ namespace MultiCoins
         return ((coinType.size() >= MIN_COIN_TYPE_LENGTH) && (coinType.size() <= MAX_COIN_TYPE_LENGTH));
     }
 
-    static bool isSentToPublicReceipt(CScript &destScript)
+    static bool isSentToPublicReceipt(const CScript &destScript)
     {
         CTxDestination address;
         if (!ExtractDestination(destScript, address))

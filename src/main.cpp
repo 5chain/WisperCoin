@@ -1278,10 +1278,13 @@ int64_t CTransaction::GetValueIn(const MapPrevTx& inputs) const
     int64_t nResult = 0;
     for (unsigned int i = 0; i < vin.size(); i++)
     {
-        nResult += GetOutputFor(vin[i], inputs).nValue;
+        const CTxOut &txOut = GetOutputFor(vin[i], inputs);
+        if (this->isCreateNewCoin() && (txOut.getType() == MultiCoins::TXOUT_NEW_COIN))
+            continue;
+
+        nResult += txOut.nValue;
     }
     return nResult;
-
 }
 
 bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs, map<uint256, CTxIndex>& mapTestPool, const CDiskTxPos& posThisTx,
