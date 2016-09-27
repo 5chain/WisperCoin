@@ -622,7 +622,7 @@ bool CWallet::IsMine(const CTxIn &txin) const
     return false;
 }
 
-int64_t CWallet::GetDebit(const CTxIn &txin, const string& coinType) const
+int64_t CWallet::GetDebit(const CTxIn &txin, const string &coinType) const
 {
     LOCK(cs_wallet);
     map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(txin.prevout.hash);
@@ -642,17 +642,9 @@ bool CWallet::IsChange(const CTxOut& txout) const
 {
     CTxDestination address;
 
-    // TODO: fix handling of 'change' outputs. The assumption is that any
-    // payment to a TX_PUBKEYHASH that is mine but isn't in the address book
-    // is change. That assumption is likely to break when we implement multisignature
-    // wallets that return change back into a multi-signature-protected address;
-    // a better way of identifying which outputs are 'the send' and which are
-    // 'the change' will need to be implemented (maybe extend CWalletTx to remember
-    // which output, if any, was change).
     if (ExtractDestination(txout.scriptPubKey, address) && ::IsMine(*this, address))
     {
-        LOCK(cs_wallet);
-        if (!mapAddressBook.count(address))
+        if ((txout.getType() == MultiCoins::TXOUT_CHANGE_NORMAL) || (txout.getType() == MultiCoins::TXOUT_CHANGE_FEE))
             return true;
     }
     return false;
@@ -706,18 +698,13 @@ int CWalletTx::GetRequestCount() const
 void CWalletTx::GetAmounts(list<pair<CTxDestination, int64_t> >& listReceived,
                            list<pair<CTxDestination, int64_t> >& listSent, int64_t& nFee, string& strSentAccount) const
 {
-    nFee = 0;
+    nFee = MultiCoins::getFeeInTx(*this);
     listReceived.clear();
     listSent.clear();
     strSentAccount = strFromAccount;
 
-    // Compute fee:
+    // debit>0 means we signed/sent this transaction
     int64_t nDebit = GetDebit();
-    if (nDebit > 0) // debit>0 means we signed/sent this transaction
-    {
-        int64_t nValueOut = GetValueOut();
-        nFee = nDebit - nValueOut;
-    }
 
     // Sent/received.
     BOOST_FOREACH(const CTxOut& txout, vout)
@@ -757,7 +744,6 @@ void CWalletTx::GetAmounts(list<pair<CTxDestination, int64_t> >& listReceived,
         if (fIsMine)
             listReceived.push_back(make_pair(address, txout.nValue));
     }
-
 }
 
 void CWalletTx::GetAccountAmounts(const string& strAccount, int64_t& nReceived,
@@ -1544,7 +1530,7 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, int64_t> > 
                 scriptChange.SetDestination(vchPubKey.GetID());
 
                 vector<CTxOut>::iterator position = newTx.vout.begin() + GetRandInt(newTx.vout.size() + 1);
-                newTx.vout.insert(position, CTxOut(feeChange, scriptChange, MultiCoins::TXOUT_CHANGE_MAIN_COIN));
+                newTx.vout.insert(position, CTxOut(feeChange, scriptChange, MultiCoins::TXOUT_CHANGE_FEE));
             }
             else
                 reservekey.ReturnKey();
@@ -1589,7 +1575,7 @@ bool CWallet::CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx 
 uint64_t CWallet::GetStakeWeight() const
 {
     // Choose coins to use
-    int64_t nBalance = GetBalance();
+    int64_t nBalance = GetBalance(MultiCoins::mainCoinTypeStr);
 
     if (nBalance <= nReserveBalance)
         return 0;
@@ -1650,7 +1636,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
     txNew.vout.push_back(CTxOut(0, scriptEmpty));
 
     // Choose coins to use
-    int64_t nBalance = GetBalance(txNew.getCoinTypeStr());
+    int64_t nBalance = GetBalance(MultiCoins::rewardCoinTypeStr);
 
     if (nBalance <= nReserveBalance)
         return false;
@@ -2016,7 +2002,7 @@ bool CWallet::CreateNewCoinTransaction(int64_t mainCoinPayValue, string newCoinT
                 scriptChange.SetDestination(vchPubKey.GetID());
 
                 vector<CTxOut>::iterator position = newTx.vout.begin() + GetRandInt(newTx.vout.size() + 1);
-                newTx.vout.insert(position, CTxOut(txChange, scriptChange, MultiCoins::TXOUT_CHANGE_MAIN_COIN));
+                newTx.vout.insert(position, CTxOut(txChange, scriptChange, MultiCoins::TXOUT_CHANGE_FEE));
             }
             else
                 reservekey.ReturnKey();

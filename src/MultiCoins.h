@@ -25,7 +25,7 @@ namespace MultiCoins
     {
         TXOUT_NORMAL = 0,
         TXOUT_CHANGE_NORMAL = 1, // for Y|X case
-        TXOUT_CHANGE_MAIN_COIN = 2, // for X and X|Y cases
+        TXOUT_CHANGE_FEE = 2, // for X and X|Y cases
         TXOUT_FEE = 3,
         TXOUT_NEW_COIN = 4,
         TXOUT_MAX = 5
@@ -34,15 +34,6 @@ namespace MultiCoins
     static bool isCoinTypeValid(const string& coinType)
     {
         return ((coinType.size() >= MIN_COIN_TYPE_LENGTH) && (coinType.size() <= MAX_COIN_TYPE_LENGTH));
-    }
-
-    static bool isSentToPublicReceipt(const CScript &destScript)
-    {
-        CTxDestination address;
-        if (!ExtractDestination(destScript, address))
-            return false;
-
-        return (address == CBitcoinAddress(publicReceiptAddress).Get());
     }
 
     class MultiCoinType //: public CBase58Data
@@ -77,6 +68,7 @@ namespace MultiCoins
     static const string mainCoinTypeStr = MultiCoinType("wsc").ToString();
     static const string feeCoinTypeStr = mainCoinTypeStr;
     static const string rewardCoinTypeStr = mainCoinTypeStr;
+    static const string allCoinTypeStr = "*";
 
     class CoinType
     {
@@ -139,6 +131,9 @@ namespace MultiCoins
             if (txOutType >= TXOUT_MAX)
                 throw logic_error("isFitCoinType: wrong txout type.");
 
+            if (specifiedType == allCoinTypeStr)
+                return true;
+
             // Currently only support main coin type exist alone.
             if (mSecondType.empty())
             {
@@ -165,7 +160,7 @@ namespace MultiCoins
                     }
                     else if (specifiedType == mSecondType)
                     {
-                        return (txOutType == TXOUT_FEE) || (txOutType == TXOUT_CHANGE_MAIN_COIN);
+                        return (txOutType == TXOUT_FEE) || (txOutType == TXOUT_CHANGE_FEE);
                     }
                 }
             }
@@ -203,6 +198,15 @@ namespace MultiCoins
     extern int64_t calculateTxFee(const CTransaction& tx);
     extern int64_t calculateTxFee(const string &coinTypeStr, int64_t txValue);
     extern int64_t getFeeInTx(const CTransaction& tx);
+
+    static bool isSentToPublicReceipt(const CScript &destScript)
+    {
+        CTxDestination address;
+        if (!ExtractDestination(destScript, address))
+            return false;
+
+        return (address == CBitcoinAddress(publicReceiptAddress).Get());
+    }
 
     static bool isFeeValid(int64_t amount)
     {

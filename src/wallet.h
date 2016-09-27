@@ -195,9 +195,9 @@ public:
     int ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false);
     void ReacceptWalletTransactions();
     void ResendWalletTransactions(bool fForce = false);
-    int64_t GetBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
-    int64_t GetUnconfirmedBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
-    int64_t GetImmatureBalance(const string& coinType = MultiCoins::mainCoinTypeStr) const;
+    int64_t GetBalance(const string& coinType = MultiCoins::allCoinTypeStr) const;
+    int64_t GetUnconfirmedBalance(const string& coinType = MultiCoins::allCoinTypeStr) const;
+    int64_t GetImmatureBalance(const string& coinType = MultiCoins::allCoinTypeStr) const;
     int64_t GetStake(const string& coinType = MultiCoins::rewardCoinTypeStr) const;
     int64_t GetNewMint(const string& coinType = MultiCoins::rewardCoinTypeStr) const;
     bool CreateTransaction(const std::vector<std::pair<CScript, int64_t> > &vecSend, CWalletTx &wtxNew, CReserveKey &reservekey);
@@ -228,7 +228,7 @@ public:
     std::map<CTxDestination, int64_t> GetAddressBalances();
 
     bool IsMine(const CTxIn& txin) const;
-    int64_t GetDebit(const CTxIn& txin, const string& coinType) const;
+    int64_t GetDebit(const CTxIn& txin, const string &coinType = MultiCoins::allCoinTypeStr) const;
     bool IsMine(const CTxOut& txout) const
     {
         return ::IsMine(*this, txout.scriptPubKey);
@@ -262,7 +262,7 @@ public:
     {
         return (GetDebit(tx) > 0);
     }
-    int64_t GetDebit(const CTransaction& tx, const string& coinType = MultiCoins::mainCoinTypeStr) const
+    int64_t GetDebit(const CTransaction& tx, const string &coinType = MultiCoins::allCoinTypeStr) const
     {
         int64_t nDebit = 0;
         BOOST_FOREACH(const CTxIn& txin, tx.vin)
@@ -273,7 +273,7 @@ public:
         }
         return nDebit;
     }
-    int64_t GetCredit(const CTransaction& tx, const string& coinType = MultiCoins::mainCoinTypeStr) const
+    int64_t GetCredit(const CTransaction& tx, const string& coinType = MultiCoins::allCoinTypeStr) const
     {
         int64_t nCredit = 0;
         for (int id = 0, size = tx.vout.size(); id < size; ++id)
@@ -289,7 +289,7 @@ public:
 
         return nCredit;
     }
-    int64_t GetChange(const CTransaction& tx, const string& coinType = MultiCoins::mainCoinTypeStr) const
+    int64_t GetChange(const CTransaction& tx, const string& coinType = MultiCoins::allCoinTypeStr) const
     {
         int64_t nChange = 0;
         for (int id = 0, size = tx.vout.size(); id < size; ++id)
@@ -423,16 +423,6 @@ public:
     std::vector<char> vfSpent; // which outputs are already spent // 为毛线用char啊。。。 好像是历史原因...
     int64_t nOrderPos;  // position in ordered transaction list
 
-    // memory only
-    mutable bool fDebitCached;
-    mutable bool fCreditCached;
-    mutable bool fAvailableCreditCached;
-    mutable bool fChangeCached;
-    mutable int64_t nDebitCached;
-    mutable int64_t nCreditCached;
-    mutable int64_t nAvailableCreditCached;
-    mutable int64_t nChangeCached;
-
     CWalletTx()
     {
         Init(NULL);
@@ -465,14 +455,6 @@ public:
         fFromMe = false;
         strFromAccount.clear();
         vfSpent.clear();
-        fDebitCached = false;
-        fCreditCached = false;
-        fAvailableCreditCached = false;
-        fChangeCached = false;
-        nDebitCached = 0;
-        nCreditCached = 0;
-        nAvailableCreditCached = 0;
-        nChangeCached = 0;
         nOrderPos = -1;
     }
 
@@ -547,7 +529,6 @@ public:
             {
                 vfSpent[i] = true;
                 fReturn = true;
-                fAvailableCreditCached = false;
             }
         }
         return fReturn;
@@ -556,10 +537,7 @@ public:
     // make sure balances are recalculated
     void MarkDirty()
     {
-        fCreditCached = false;
-        fAvailableCreditCached = false;
-        fDebitCached = false;
-        fChangeCached = false;
+        // No cache now.
     }
 
     void BindWallet(CWallet *pwalletIn)
@@ -574,10 +552,7 @@ public:
             throw std::runtime_error("CWalletTx::MarkSpent() : nOut out of range");
         vfSpent.resize(vout.size());
         if (!vfSpent[nOut])
-        {
             vfSpent[nOut] = true;
-            fAvailableCreditCached = false;
-        }
     }
 
     void MarkUnspent(unsigned int nOut)
@@ -586,10 +561,7 @@ public:
             throw std::runtime_error("CWalletTx::MarkUnspent() : nOut out of range");
         vfSpent.resize(vout.size());
         if (vfSpent[nOut])
-        {
             vfSpent[nOut] = false;
-            fAvailableCreditCached = false;
-        }
     }
 
     bool IsSpent(unsigned int nOut) const
@@ -601,39 +573,28 @@ public:
         return (!!vfSpent[nOut]);
     }
 
-    int64_t GetDebit(const string& coinType = MultiCoins::mainCoinTypeStr) const
+    int64_t GetDebit(const string &coinType = MultiCoins::allCoinTypeStr) const
     {
         if (vin.empty())
             return 0;
-        if (fDebitCached)
-            return nDebitCached;
-        nDebitCached = pwallet->GetDebit(*this, coinType);
-        fDebitCached = true;
-        return nDebitCached;
+
+        return pwallet->GetDebit(*this, coinType);
     }
 
-    int64_t GetCredit(const string& coinType = MultiCoins::mainCoinTypeStr, bool fUseCache=true) const
+    int64_t GetCredit(const string& coinType = MultiCoins::allCoinTypeStr) const
     {
         // Must wait until coinbase is safely deep enough in the chain before valuing it
         if (GetBlocksToMaturity() > 0)
             return 0;
 
-        // GetBalance can assume transactions in mapWallet won't change
-        if (fUseCache && fCreditCached)
-            return nCreditCached;
-        nCreditCached = pwallet->GetCredit(*this, coinType);
-        fCreditCached = true;
-        return nCreditCached;
+        return pwallet->GetCredit(*this, coinType);
     }
 
-    int64_t GetAvailableCredit(const string& coinType = MultiCoins::mainCoinTypeStr, bool fUseCache=true) const
+    int64_t GetAvailableCredit(const string& coinType = MultiCoins::allCoinTypeStr) const
     {
         // Must wait until coinbase is safely deep enough in the chain before valuing it
         if (GetBlocksToMaturity() > 0)
             return 0;
-
-        if (fUseCache && fAvailableCreditCached)
-            return nAvailableCreditCached;
 
         int64_t nCredit = 0;
         for (unsigned int id = 0; id < vout.size(); id++)
@@ -650,19 +611,13 @@ public:
             }
         }
 
-        nAvailableCreditCached = nCredit;
-        fAvailableCreditCached = true;
         return nCredit;
     }
 
 
     int64_t GetChange() const
     {
-        if (fChangeCached)
-            return nChangeCached;
-        nChangeCached = pwallet->GetChange(*this);
-        fChangeCached = true;
-        return nChangeCached;
+        return pwallet->GetChange(*this);
     }
 
     void GetAmounts(std::list<std::pair<CTxDestination, int64_t> >& listReceived,

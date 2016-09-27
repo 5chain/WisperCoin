@@ -591,7 +591,7 @@ bool CTransaction::CheckTransaction() const
                     break;
 
                 case MultiCoins::TXOUT_CHANGE_NORMAL:
-                case MultiCoins::TXOUT_CHANGE_MAIN_COIN:
+                case MultiCoins::TXOUT_CHANGE_FEE:
                     ++changeCount;
                     break;
 

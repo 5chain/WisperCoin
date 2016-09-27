@@ -248,13 +248,10 @@ public:
 
     inline bool isFitCoinType(const string &specifiedType1, const string &specifiedType2, unsigned int outVecIdx) const
     {
-        if (!this->isFitCoinType(specifiedType1, outVecIdx))
-            return false;
+        if (this->isFitCoinType(specifiedType1, outVecIdx) || this->isFitCoinType(specifiedType2, outVecIdx))
+            return true;
 
-        if ((specifiedType1 != specifiedType2) && !this->isFitCoinType(specifiedType2, outVecIdx))
-            return false;
-
-        return true;
+        return false;
     }
 
     inline bool isMainCoinTx() const

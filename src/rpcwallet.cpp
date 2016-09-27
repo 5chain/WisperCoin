@@ -1230,13 +1230,13 @@ Value gettransaction(const Array& params, bool fHelp)
         TxToJSON(wtx, 0, entry);
 
         int64_t nCredit = wtx.GetCredit(wtx.getCoinTypeStr());
-        int64_t nDebit = wtx.GetDebit(wtx.getCoinTypeStr());
+        int64_t nDebit = wtx.GetDebit();
         int64_t nNet = nCredit - nDebit;
-        int64_t nFee = (wtx.IsFromMe() ? wtx.GetValueOut() - nDebit : 0);
+        int64_t fee = MultiCoins::getFeeInTx(wtx);
 
-        entry.push_back(Pair("amount", ValueFromAmount(nNet - nFee)));
+        entry.push_back(Pair("amount", ValueFromAmount(nNet - fee)));
         if (wtx.IsFromMe())
-            entry.push_back(Pair("fee", ValueFromAmount(nFee)));
+            entry.push_back(Pair("fee", ValueFromAmount(fee)));
 
         WalletTxToJSON(wtx, entry);
 
